@@ -1,56 +1,58 @@
+import jwt from "jsonwebtoken";
+
 const AUTH_COOKIE_NAME =
   process.env.AUTH_COOKIE_NAME ||
   "laminati_session";
+
+const FALLBACK_MAX_AGE_MS =
+  2 * 60 * 60 * 1000;
 
 const isProduction = () =>
   String(process.env.NODE_ENV || "development")
     .trim()
     .toLowerCase() === "production";
 
-const parseDurationMs = (value) => {
-  const source = String(value || "2h")
-    .trim()
-    .toLowerCase();
+const getTokenRemainingMs = (token) => {
+  try {
+    const decoded = jwt.decode(token);
+    const expiresAt =
+      Number(decoded?.exp || 0) * 1000;
 
-  const match = source.match(/^(\d+)(s|m|h|d)$/);
-  if (!match) return 2 * 60 * 60 * 1000;
+    if (!expiresAt) {
+      return FALLBACK_MAX_AGE_MS;
+    }
 
-  const amount = Number(match[1]);
-  const factors = {
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-  };
-
-  return amount * factors[match[2]];
+    return Math.max(
+      expiresAt - Date.now(),
+      1000
+    );
+  } catch {
+    return FALLBACK_MAX_AGE_MS;
+  }
 };
 
-export const getAuthCookieOptions = () => ({
+export const getAuthCookieOptions = (token) => ({
   httpOnly: true,
   secure: isProduction(),
   sameSite: isProduction() ? "none" : "lax",
   path: "/",
-  maxAge: parseDurationMs(
-    process.env.JWT_EXPIRES_IN || "2h"
-  ),
+  ...(token
+    ? { maxAge: getTokenRemainingMs(token) }
+    : {}),
 });
 
 export const setAuthCookie = (res, token) => {
   res.cookie(
     AUTH_COOKIE_NAME,
     token,
-    getAuthCookieOptions()
+    getAuthCookieOptions(token)
   );
 };
 
 export const clearAuthCookie = (res) => {
-  const { maxAge, ...options } =
-    getAuthCookieOptions();
-
   res.clearCookie(
     AUTH_COOKIE_NAME,
-    options
+    getAuthCookieOptions()
   );
 };
 
@@ -85,7 +87,9 @@ const normalizeBearer = (value) => {
   if (!source) return null;
 
   if (/^Bearer\s+/i.test(source)) {
-    return source.replace(/^Bearer\s+/i, "").trim();
+    return source
+      .replace(/^Bearer\s+/i, "")
+      .trim();
   }
 
   return null;
@@ -105,7 +109,6 @@ export const getAuthTokenFromRequest = (req) => {
 };
 
 export const getAuthTokenFromSocket = (socket) => {
-  // Compatibilidad temporal con el handshake legacy.
   const legacyAuthToken = String(
     socket?.handshake?.auth?.token || ""
   )

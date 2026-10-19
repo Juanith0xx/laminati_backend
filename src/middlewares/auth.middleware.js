@@ -23,8 +23,11 @@ export const authenticate = async (req, res, next) => {
 
     /* =========================================
        CONTEXTO DE AUTENTICACIÓN
-       Mantiene el JWT solo en el servidor y
-       permite consultar su fecha de expiración.
+
+       Se conserva el JWT decodificado únicamente
+       dentro del request del servidor. Esto permite
+       consultar su expiración sin exponer el token
+       al frontend.
     ========================================= */
     req.auth = {
       token,

@@ -4,6 +4,7 @@ import pool from "../config/database.js";
 import {
   generateToken,
   verifyToken,
+  getSessionDurationLabelForRole,
 } from "../utils/jwt.js";
 import {
   clearAuthCookie,
@@ -678,10 +679,18 @@ export const session = async (req, res) => {
   }
 
   const serverTime = Date.now();
+  const role = String(
+    req.user?.role || ""
+  )
+    .trim()
+    .toUpperCase();
 
   return res.status(200).json({
     success: true,
     authenticated: true,
+    role,
+    renewal_duration_label:
+      getSessionDurationLabelForRole(role),
     expires_at: expiresAt,
     expires_in_ms: Math.max(
       expiresAt - serverTime,
@@ -695,8 +704,8 @@ export const session = async (req, res) => {
    EXTENDER SESIÓN AUTENTICADA
 
    Genera un JWT nuevo y reemplaza la cookie
-   HttpOnly actual. La nueva duración vuelve a
-   estar definida por JWT_EXPIRES_IN (2h por defecto).
+   HttpOnly actual. La nueva duración se resuelve
+   automáticamente según el rol autenticado.
 ========================================= */
 export const extendSession = async (req, res) => {
   try {
@@ -716,6 +725,11 @@ export const extendSession = async (req, res) => {
       success: true,
       message:
         "Sesión extendida correctamente",
+      role: req.user.role,
+      renewal_duration_label:
+        getSessionDurationLabelForRole(
+          req.user.role
+        ),
       expires_at: expiresAt,
       expires_in_ms: Math.max(
         expiresAt - serverTime,
