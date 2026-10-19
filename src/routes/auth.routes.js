@@ -7,6 +7,8 @@ import {
   login,
   logout,
   me,
+  updateMe,
+  changePassword,
   session,
   extendSession,
 } from "../controllers/auth.controller.js";
@@ -68,6 +70,31 @@ router.get(
   "/me",
   authenticate,
   me
+);
+
+router.patch(
+  "/me",
+  authenticate,
+  updateMe
+);
+
+const passwordChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message:
+      "Demasiados intentos de cambio de contraseña. Inténtalo nuevamente más tarde.",
+  },
+});
+
+router.post(
+  "/change-password",
+  passwordChangeLimiter,
+  authenticate,
+  changePassword
 );
 
 router.get(

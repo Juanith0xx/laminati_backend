@@ -658,6 +658,275 @@ export const me = async (req, res) => {
   });
 };
 
+
+/* =========================================
+   ACTUALIZAR PERFIL AUTENTICADO
+
+   Seguridad:
+   - El usuario puede modificar únicamente
+     nombre, apellido y teléfono.
+   - Correo, RUT, rol y estado no se cambian
+     desde esta ruta.
+========================================= */
+export const updateMe = async (req, res) => {
+  const firstName = String(
+    req.body?.first_name ?? ""
+  ).trim();
+
+  const lastName = String(
+    req.body?.last_name ?? ""
+  ).trim();
+
+  const phoneRaw = req.body?.phone;
+
+  const phone =
+    phoneRaw === null ||
+    phoneRaw === undefined ||
+    String(phoneRaw).trim() === ""
+      ? null
+      : String(phoneRaw).trim();
+
+  if (!firstName) {
+    return res.status(400).json({
+      success: false,
+      message: "El nombre es obligatorio",
+      code: "PROFILE_FIRST_NAME_REQUIRED",
+    });
+  }
+
+  if (!lastName) {
+    return res.status(400).json({
+      success: false,
+      message: "El apellido es obligatorio",
+      code: "PROFILE_LAST_NAME_REQUIRED",
+    });
+  }
+
+  if (firstName.length > 100) {
+    return res.status(400).json({
+      success: false,
+      message: "El nombre es demasiado largo",
+      code: "PROFILE_FIRST_NAME_TOO_LONG",
+    });
+  }
+
+  if (lastName.length > 100) {
+    return res.status(400).json({
+      success: false,
+      message: "El apellido es demasiado largo",
+      code: "PROFILE_LAST_NAME_TOO_LONG",
+    });
+  }
+
+  if (phone && phone.length > 30) {
+    return res.status(400).json({
+      success: false,
+      message: "El teléfono es demasiado largo",
+      code: "PROFILE_PHONE_TOO_LONG",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        UPDATE users
+        SET
+          first_name = $1,
+          last_name = $2,
+          phone = $3
+        WHERE id = $4
+          AND deleted_at IS NULL
+        RETURNING
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          rut,
+          is_active,
+          email_verified,
+          last_login_at,
+          created_at
+      `,
+      [
+        firstName,
+        lastName,
+        phone,
+        req.user.id,
+      ]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+        code: "PROFILE_USER_NOT_FOUND",
+      });
+    }
+
+    const updatedUser = result.rows[0];
+    const companies = await getUserCompanies(
+      pool,
+      req.user.id
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Perfil actualizado correctamente",
+      user: {
+        ...updatedUser,
+        role: req.user.role,
+        role_label: getRoleLabel(req.user.role),
+        companies,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Error actualizando perfil:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible actualizar el perfil",
+      code: "PROFILE_UPDATE_ERROR",
+    });
+  }
+};
+
+/* =========================================
+   CAMBIAR CONTRASEÑA DEL USUARIO AUTENTICADO
+========================================= */
+export const changePassword = async (
+  req,
+  res
+) => {
+  const currentPassword = String(
+    req.body?.current_password ?? ""
+  );
+
+  const newPassword = String(
+    req.body?.new_password ?? ""
+  );
+
+  const confirmPassword = String(
+    req.body?.confirm_password ?? ""
+  );
+
+  if (
+    !currentPassword ||
+    !newPassword ||
+    !confirmPassword
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Debes completar todos los campos de contraseña",
+      code: "PASSWORD_FIELDS_REQUIRED",
+    });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "La nueva contraseña debe tener al menos 8 caracteres",
+      code: "PASSWORD_TOO_SHORT",
+    });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "La confirmación de contraseña no coincide",
+      code: "PASSWORD_CONFIRMATION_MISMATCH",
+    });
+  }
+
+  if (newPassword === currentPassword) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "La nueva contraseña debe ser distinta de la actual",
+      code: "PASSWORD_MUST_CHANGE",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          password_hash
+        FROM users
+        WHERE id = $1
+          AND deleted_at IS NULL
+        LIMIT 1
+      `,
+      [req.user.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+        code: "PASSWORD_USER_NOT_FOUND",
+      });
+    }
+
+    const validCurrentPassword =
+      await bcrypt.compare(
+        currentPassword,
+        result.rows[0].password_hash
+      );
+
+    if (!validCurrentPassword) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "La contraseña actual no es correcta",
+        code: "PASSWORD_CURRENT_INVALID",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(
+      newPassword,
+      12
+    );
+
+    await pool.query(
+      `
+        UPDATE users
+        SET password_hash = $1
+        WHERE id = $2
+      `,
+      [
+        passwordHash,
+        req.user.id,
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Contraseña actualizada correctamente",
+    });
+  } catch (error) {
+    console.error(
+      "Error cambiando contraseña:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible actualizar la contraseña",
+      code: "PASSWORD_UPDATE_ERROR",
+    });
+  }
+};
+
 /* =========================================
    ESTADO DE SESIÓN AUTENTICADA
 
