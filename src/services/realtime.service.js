@@ -4,6 +4,9 @@ import pool from "../config/database.js";
 import { corsOptions } from "../config/cors.js";
 import { verifyToken } from "../utils/jwt.js";
 import {
+  getAuthTokenFromSocket,
+} from "../utils/authCookie.js";
+import {
   createAdminNotification,
 } from "./adminNotifications.service.js";
 
@@ -19,28 +22,6 @@ let io = null;
 
 const normalizeText = (value) =>
   String(value ?? "").trim();
-
-const normalizeToken = (value) =>
-  normalizeText(value)
-    .replace(/^Bearer\s+/i, "")
-    .replace(/^"|"$/g, "")
-    .trim();
-
-const getSocketToken = (socket) => {
-  const authToken =
-    normalizeToken(
-      socket?.handshake?.auth?.token
-    );
-
-  if (authToken) {
-    return authToken;
-  }
-
-  return normalizeToken(
-    socket?.handshake?.headers
-      ?.authorization
-  );
-};
 
 const getAdminUserFromToken = async (
   token
@@ -180,7 +161,7 @@ export const initializeRealtimeServer = (
     ) => {
       try {
         const token =
-          getSocketToken(
+          getAuthTokenFromSocket(
             socket
           );
 
@@ -488,4 +469,3 @@ export const emitTaxDocumentUpdated = (
 
   return true;
 };
-

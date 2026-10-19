@@ -5,7 +5,10 @@ import {
   register,
   registerCompany,
   login,
+  logout,
   me,
+  session,
+  extendSession,
 } from "../controllers/auth.controller.js";
 
 import {
@@ -56,10 +59,27 @@ router.post(
   login
 );
 
+router.post(
+  "/logout",
+  logout
+);
+
 router.get(
   "/me",
   authenticate,
   me
+);
+
+router.get(
+  "/session",
+  authenticate,
+  session
+);
+
+router.post(
+  "/extend-session",
+  authenticate,
+  extendSession
 );
 
 export default router;

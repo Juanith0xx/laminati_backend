@@ -1,33 +1,38 @@
 import pool from "../config/database.js";
 import { verifyToken } from "../utils/jwt.js";
+import {
+  getAuthTokenFromRequest,
+} from "../utils/authCookie.js";
 
 /* =========================================
    AUTENTICAR USUARIO MEDIANTE JWT
 ========================================= */
 export const authenticate = async (req, res, next) => {
   try {
-    const authorization = req.headers.authorization;
+    const token =
+      getAuthTokenFromRequest(req);
 
-    if (
-      !authorization ||
-      !authorization.startsWith("Bearer ")
-    ) {
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: "Autenticación requerida",
       });
     }
 
-    const token = authorization.substring(7).trim();
-
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: "Token de autenticación no proporcionado",
-      });
-    }
-
     const decoded = verifyToken(token);
+
+    /* =========================================
+       CONTEXTO DE AUTENTICACIÓN
+
+       Se conserva el JWT decodificado únicamente
+       dentro del request del servidor. Esto permite
+       consultar su expiración sin exponer el token
+       al frontend.
+    ========================================= */
+    req.auth = {
+      token,
+      decoded,
+    };
 
     /* =========================================
        BUSCAR USUARIO

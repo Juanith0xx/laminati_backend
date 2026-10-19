@@ -1,7 +1,14 @@
 import bcrypt from "bcryptjs";
 
 import pool from "../config/database.js";
-import { generateToken } from "../utils/jwt.js";
+import {
+  generateToken,
+  verifyToken,
+} from "../utils/jwt.js";
+import {
+  clearAuthCookie,
+  setAuthCookie,
+} from "../utils/authCookie.js";
 import {
   registerSchema,
   registerCompanySchema,
@@ -206,6 +213,8 @@ export const register = async (req, res) => {
       id: user.id,
       role: PUBLIC_ROLE_CLIENT,
     });
+
+    setAuthCookie(res, token);
 
     return res.status(201).json({
       success: true,
@@ -478,6 +487,8 @@ export const registerCompany = async (req, res) => {
       role: PUBLIC_ROLE_COMPANY,
     });
 
+    setAuthCookie(res, token);
+
     return res.status(201).json({
       success: true,
       message: "Cuenta empresa creada correctamente",
@@ -600,6 +611,8 @@ export const login = async (req, res) => {
       role: user.role,
     });
 
+    setAuthCookie(res, token);
+
     delete user.password_hash;
 
     return res.status(200).json({
@@ -625,6 +638,15 @@ export const login = async (req, res) => {
 /* =========================================
    USUARIO AUTENTICADO
 ========================================= */
+export const logout = async (req, res) => {
+  clearAuthCookie(res);
+
+  return res.status(200).json({
+    success: true,
+    message: "Sesión cerrada correctamente",
+  });
+};
+
 export const me = async (req, res) => {
   return res.status(200).json({
     success: true,
@@ -634,3 +656,84 @@ export const me = async (req, res) => {
     },
   });
 };
+
+/* =========================================
+   ESTADO DE SESIÓN AUTENTICADA
+
+   Devuelve solo metadatos de expiración.
+   El JWT permanece exclusivamente en la cookie
+   HttpOnly y nunca se expone al navegador.
+========================================= */
+export const session = async (req, res) => {
+  const expiresAt =
+    Number(req.auth?.decoded?.exp || 0) * 1000;
+
+  if (!expiresAt) {
+    return res.status(401).json({
+      success: false,
+      authenticated: false,
+      message:
+        "No fue posible determinar la expiración de la sesión",
+    });
+  }
+
+  const serverTime = Date.now();
+
+  return res.status(200).json({
+    success: true,
+    authenticated: true,
+    expires_at: expiresAt,
+    expires_in_ms: Math.max(
+      expiresAt - serverTime,
+      0
+    ),
+    server_time: serverTime,
+  });
+};
+
+/* =========================================
+   EXTENDER SESIÓN AUTENTICADA
+
+   Genera un JWT nuevo y reemplaza la cookie
+   HttpOnly actual. La nueva duración vuelve a
+   estar definida por JWT_EXPIRES_IN (2h por defecto).
+========================================= */
+export const extendSession = async (req, res) => {
+  try {
+    const token = generateToken({
+      id: req.user.id,
+      role: req.user.role,
+    });
+
+    setAuthCookie(res, token);
+
+    const decoded = verifyToken(token);
+    const expiresAt =
+      Number(decoded?.exp || 0) * 1000;
+    const serverTime = Date.now();
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Sesión extendida correctamente",
+      expires_at: expiresAt,
+      expires_in_ms: Math.max(
+        expiresAt - serverTime,
+        0
+      ),
+      server_time: serverTime,
+    });
+  } catch (error) {
+    console.error(
+      "Error extendiendo sesión:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible extender la sesión",
+    });
+  }
+};
+
