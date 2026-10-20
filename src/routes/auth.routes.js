@@ -8,6 +8,8 @@ import {
   logout,
   me,
   updateMe,
+  updateAvatar,
+  deleteAvatar,
   changePassword,
   session,
   extendSession,
@@ -16,6 +18,10 @@ import {
 import {
   authenticate,
 } from "../middlewares/auth.middleware.js";
+
+import {
+  avatarUploadMiddleware,
+} from "../middlewares/upload.middleware.js";
 
 const router = Router();
 
@@ -76,6 +82,20 @@ router.patch(
   "/me",
   authenticate,
   updateMe
+);
+
+
+router.patch(
+  "/me/avatar",
+  authenticate,
+  avatarUploadMiddleware,
+  updateAvatar
+);
+
+router.delete(
+  "/me/avatar",
+  authenticate,
+  deleteAvatar
 );
 
 const passwordChangeLimiter = rateLimit({

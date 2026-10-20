@@ -430,6 +430,142 @@ export const getProductImageSignedUrl =
     );
   };
 
+
+
+/* =========================================
+   AVATAR DE USUARIO
+========================================= */
+
+const PROFILE_AVATAR_SIZE = 512;
+const PROFILE_AVATAR_QUALITY = 86;
+
+const buildUserAvatarObjectKey = ({
+  userId,
+  avatarId,
+}) => {
+  const safeUserId =
+    sanitizeSegment(userId);
+
+  const safeAvatarId =
+    sanitizeSegment(avatarId);
+
+  if (!safeUserId) {
+    throw new Error(
+      "ID de usuario no válido para avatar"
+    );
+  }
+
+  if (!safeAvatarId) {
+    throw new Error(
+      "ID de avatar no válido"
+    );
+  }
+
+  return [
+    "users",
+    safeUserId,
+    "avatar",
+    `${safeAvatarId}.webp`,
+  ].join("/");
+};
+
+export const uploadUserAvatar =
+  async ({
+    buffer,
+    userId,
+    avatarId,
+  }) => {
+    const metadata =
+      await validateImageBuffer(
+        buffer
+      );
+
+    const {
+      data,
+      info,
+    } = await sharp(buffer)
+      .rotate()
+      .resize({
+        width:
+          PROFILE_AVATAR_SIZE,
+        height:
+          PROFILE_AVATAR_SIZE,
+        fit: "cover",
+        position: "centre",
+      })
+      .webp({
+        quality:
+          PROFILE_AVATAR_QUALITY,
+        effort: 4,
+        smartSubsample: true,
+      })
+      .toBuffer({
+        resolveWithObject: true,
+      });
+
+    const key =
+      buildUserAvatarObjectKey({
+        userId,
+        avatarId,
+      });
+
+    await uploadObject({
+      key,
+      buffer: data,
+    });
+
+    return {
+      key,
+      source: {
+        format:
+          metadata.format,
+        width:
+          metadata.width ||
+          null,
+        height:
+          metadata.height ||
+          null,
+        bytes:
+          buffer.length,
+      },
+      avatar: {
+        width:
+          info.width ||
+          PROFILE_AVATAR_SIZE,
+        height:
+          info.height ||
+          PROFILE_AVATAR_SIZE,
+        bytes:
+          data.length,
+        content_type:
+          "image/webp",
+      },
+    };
+  };
+
+export const deleteUserAvatar =
+  async (key) => {
+    if (!key) {
+      return;
+    }
+
+    await deleteProductImageVariants(
+      [key]
+    );
+  };
+
+export const getUserAvatarSignedUrl =
+  async (
+    key,
+    options = {}
+  ) => {
+    return getProductImageSignedUrl(
+      key,
+      options
+    );
+  };
+
+
 /* =========================================
    CONFIGURACIÓN EXPORTADA
 ========================================= */

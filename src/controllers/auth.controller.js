@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 
 import pool from "../config/database.js";
 import {
@@ -15,6 +16,11 @@ import {
   registerCompanySchema,
   loginSchema,
 } from "../validators/auth.validator.js";
+import {
+  uploadUserAvatar,
+  deleteUserAvatar,
+  getUserAvatarSignedUrl,
+} from "../services/productImageStorage.service.js";
 
 const PUBLIC_ROLE_CLIENT = "CLIENTE";
 const PUBLIC_ROLE_COMPANY = "USUARIO_EMPRESA";
@@ -29,6 +35,48 @@ const ROLE_LABELS = {
 const getRoleLabel = (role) =>
   ROLE_LABELS[String(role || "").trim().toUpperCase()] ||
   String(role || "");
+
+
+const resolveAvatarUrl = async (
+  avatarKey
+) => {
+  if (!avatarKey) {
+    return null;
+  }
+
+  try {
+    return await getUserAvatarSignedUrl(
+      avatarKey
+    );
+  } catch (error) {
+    console.error(
+      "No fue posible generar la URL del avatar:",
+      error
+    );
+
+    return null;
+  }
+};
+
+const serializeUserWithAvatar =
+  async (user) => {
+    if (!user) {
+      return null;
+    }
+
+    const {
+      avatar_key: avatarKey,
+      ...publicUser
+    } = user;
+
+    return {
+      ...publicUser,
+      avatar_url:
+        await resolveAvatarUrl(
+          avatarKey
+        ),
+    };
+  };
 
 const normalizeRutIdentity = (value) =>
   String(value || "")
@@ -554,6 +602,7 @@ export const login = async (req, res) => {
           u.rut,
           u.is_active,
           u.email_verified,
+          u.avatar_key,
           r.name AS role
         FROM users u
         INNER JOIN roles r
@@ -616,12 +665,17 @@ export const login = async (req, res) => {
 
     delete user.password_hash;
 
+    const publicUser =
+      await serializeUserWithAvatar(
+        user
+      );
+
     return res.status(200).json({
       success: true,
       message: "Inicio de sesión correcto",
       token,
       user: {
-        ...user,
+        ...publicUser,
         role_label: getRoleLabel(user.role),
         companies,
       },
@@ -649,13 +703,51 @@ export const logout = async (req, res) => {
 };
 
 export const me = async (req, res) => {
-  return res.status(200).json({
-    success: true,
-    user: {
-      ...req.user,
-      role_label: getRoleLabel(req.user.role),
-    },
-  });
+  try {
+    const result =
+      await pool.query(
+        `
+          SELECT avatar_key
+          FROM users
+          WHERE id = $1
+            AND deleted_at IS NULL
+          LIMIT 1
+        `,
+        [req.user.id]
+      );
+
+    const avatarKey =
+      result.rows[0]?.avatar_key ||
+      null;
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        ...req.user,
+        avatar_url:
+          await resolveAvatarUrl(
+            avatarKey
+          ),
+        role_label:
+          getRoleLabel(
+            req.user.role
+          ),
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Error obteniendo perfil autenticado:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible obtener el perfil",
+      code:
+        "PROFILE_READ_ERROR",
+    });
+  }
 };
 
 
@@ -745,6 +837,7 @@ export const updateMe = async (req, res) => {
           rut,
           is_active,
           email_verified,
+          avatar_key,
           last_login_at,
           created_at
       `,
@@ -770,11 +863,16 @@ export const updateMe = async (req, res) => {
       req.user.id
     );
 
+    const publicUser =
+      await serializeUserWithAvatar(
+        updatedUser
+      );
+
     return res.status(200).json({
       success: true,
       message: "Perfil actualizado correctamente",
       user: {
-        ...updatedUser,
+        ...publicUser,
         role: req.user.role,
         role_label: getRoleLabel(req.user.role),
         companies,
@@ -792,6 +890,334 @@ export const updateMe = async (req, res) => {
         "No fue posible actualizar el perfil",
       code: "PROFILE_UPDATE_ERROR",
     });
+  }
+};
+
+
+
+/* =========================================
+   ACTUALIZAR AVATAR DEL USUARIO AUTENTICADO
+========================================= */
+export const updateAvatar = async (
+  req,
+  res
+) => {
+  if (!req.file?.buffer) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Debes seleccionar una foto de perfil",
+      code:
+        "PROFILE_AVATAR_FILE_REQUIRED",
+    });
+  }
+
+  const avatarId =
+    randomUUID();
+
+  const client =
+    await pool.connect();
+
+  let newAvatarKey = null;
+  let previousAvatarKey = null;
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    const currentResult =
+      await client.query(
+        `
+          SELECT avatar_key
+          FROM users
+          WHERE id = $1
+            AND deleted_at IS NULL
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [req.user.id]
+      );
+
+    if (
+      currentResult.rowCount === 0
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Usuario no encontrado",
+        code:
+          "PROFILE_USER_NOT_FOUND",
+      });
+    }
+
+    previousAvatarKey =
+      currentResult.rows[0]
+        ?.avatar_key ||
+      null;
+
+    const storageResult =
+      await uploadUserAvatar({
+        buffer:
+          req.file.buffer,
+        userId:
+          req.user.id,
+        avatarId,
+      });
+
+    newAvatarKey =
+      storageResult.key;
+
+    const updateResult =
+      await client.query(
+        `
+          UPDATE users
+          SET avatar_key = $1
+          WHERE id = $2
+            AND deleted_at IS NULL
+          RETURNING
+            id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            rut,
+            is_active,
+            email_verified,
+            avatar_key,
+            last_login_at,
+            created_at
+        `,
+        [
+          newAvatarKey,
+          req.user.id,
+        ]
+      );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    if (
+      previousAvatarKey &&
+      previousAvatarKey !==
+        newAvatarKey
+    ) {
+      try {
+        await deleteUserAvatar(
+          previousAvatarKey
+        );
+      } catch (cleanupError) {
+        console.error(
+          "No fue posible eliminar el avatar anterior:",
+          cleanupError
+        );
+      }
+    }
+
+    const companies =
+      Array.isArray(
+        req.user?.companies
+      )
+        ? req.user.companies
+        : [];
+
+    const publicUser =
+      await serializeUserWithAvatar(
+        updateResult.rows[0]
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Foto de perfil actualizada correctamente",
+      user: {
+        ...publicUser,
+        role:
+          req.user.role,
+        role_label:
+          getRoleLabel(
+            req.user.role
+          ),
+        companies,
+      },
+    });
+  } catch (error) {
+    await client
+      .query("ROLLBACK")
+      .catch(() => null);
+
+    if (newAvatarKey) {
+      try {
+        await deleteUserAvatar(
+          newAvatarKey
+        );
+      } catch (cleanupError) {
+        console.error(
+          "No fue posible limpiar el avatar nuevo después del error:",
+          cleanupError
+        );
+      }
+    }
+
+    console.error(
+      "Error actualizando avatar:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible actualizar la foto de perfil",
+      code:
+        "PROFILE_AVATAR_UPDATE_ERROR",
+    });
+  } finally {
+    client.release();
+  }
+};
+
+/* =========================================
+   ELIMINAR AVATAR DEL USUARIO AUTENTICADO
+========================================= */
+export const deleteAvatar = async (
+  req,
+  res
+) => {
+  const client =
+    await pool.connect();
+
+  let previousAvatarKey = null;
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    const currentResult =
+      await client.query(
+        `
+          SELECT avatar_key
+          FROM users
+          WHERE id = $1
+            AND deleted_at IS NULL
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [req.user.id]
+      );
+
+    if (
+      currentResult.rowCount === 0
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Usuario no encontrado",
+        code:
+          "PROFILE_USER_NOT_FOUND",
+      });
+    }
+
+    previousAvatarKey =
+      currentResult.rows[0]
+        ?.avatar_key ||
+      null;
+
+    const result =
+      await client.query(
+        `
+          UPDATE users
+          SET avatar_key = NULL
+          WHERE id = $1
+            AND deleted_at IS NULL
+          RETURNING
+            id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            rut,
+            is_active,
+            email_verified,
+            avatar_key,
+            last_login_at,
+            created_at
+        `,
+        [req.user.id]
+      );
+
+    await client.query(
+      "COMMIT"
+    );
+
+    if (previousAvatarKey) {
+      try {
+        await deleteUserAvatar(
+          previousAvatarKey
+        );
+      } catch (cleanupError) {
+        console.error(
+          "No fue posible eliminar el avatar de Railway:",
+          cleanupError
+        );
+      }
+    }
+
+    const companies =
+      Array.isArray(
+        req.user?.companies
+      )
+        ? req.user.companies
+        : [];
+
+    const publicUser =
+      await serializeUserWithAvatar(
+        result.rows[0]
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Foto de perfil eliminada correctamente",
+      user: {
+        ...publicUser,
+        role:
+          req.user.role,
+        role_label:
+          getRoleLabel(
+            req.user.role
+          ),
+        companies,
+      },
+    });
+  } catch (error) {
+    await client
+      .query("ROLLBACK")
+      .catch(() => null);
+
+    console.error(
+      "Error eliminando avatar:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible eliminar la foto de perfil",
+      code:
+        "PROFILE_AVATAR_DELETE_ERROR",
+    });
+  } finally {
+    client.release();
   }
 };
 

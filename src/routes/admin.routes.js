@@ -137,6 +137,14 @@ import {
 
   probeRelbaseDteV2Auth,
 
+  previewRelbaseDteHistory,
+  getRelbaseDteHistorySyncStateController,
+  syncRelbaseDteHistoryController,
+  getRelbaseDteHistoryCustomerSyncStateController,
+  syncRelbaseDteHistoryCustomersController,
+  listRelbaseDteHistoryController,
+  getRelbaseDteHistorySummaryController,
+  getRelbaseDteHistoryDetailController,
   previewRelbaseDteSync,
 
   previewRelbaseDteExternalDetail,
@@ -1022,6 +1030,67 @@ router.get(
 
   probeRelbaseDteV2CorsControlController
 
+);
+
+/* =========================================
+   PREVIEW HISTÓRICO DTE RELBASE - FASE 2
+   Sólo lectura: Facturas 33 + Boletas 39.
+   NO persiste y NO emite documentos.
+========================================= */
+router.get(
+  "/integrations/relbase/dtes/history-preview",
+  previewRelbaseDteHistory
+);
+
+/* =========================================
+   ESTADO + SINCRONIZACIÓN HISTÓRICA DTE
+   FASE 3
+========================================= */
+router.get(
+  "/integrations/relbase/dtes/history/sync-state",
+  getRelbaseDteHistorySyncStateController
+);
+
+router.post(
+  "/integrations/relbase/dtes/history/sync",
+  syncRelbaseDteHistoryController
+);
+
+
+
+/* =========================================
+   ENRIQUECIMIENTO CLIENTES DTE - FASE 5.1
+   GET hacia Relbase + UPDATE local.
+   NO emite DTE ni escribe en Relbase.
+========================================= */
+router.get(
+  "/integrations/relbase/dtes/history/customers/sync-state",
+  getRelbaseDteHistoryCustomerSyncStateController
+);
+
+router.post(
+  "/integrations/relbase/dtes/history/customers/sync",
+  syncRelbaseDteHistoryCustomersController
+);
+
+
+/* =========================================
+   CONSULTA HISTÓRICA DTE - FASE 4
+   Sólo PostgreSQL. No consulta Relbase.
+========================================= */
+router.get(
+  "/integrations/relbase/dtes/history/summary",
+  getRelbaseDteHistorySummaryController
+);
+
+router.get(
+  "/integrations/relbase/dtes/history",
+  listRelbaseDteHistoryController
+);
+
+router.get(
+  "/integrations/relbase/dtes/history/:id",
+  getRelbaseDteHistoryDetailController
 );
 
 router.get(

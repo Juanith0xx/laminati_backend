@@ -572,3 +572,153 @@ export const projectImageUploadMiddleware =
       }
     );
   };
+
+/* =========================================
+   AVATAR DE PERFIL
+   - Memoria
+   - 1 archivo por solicitud
+   - Campo esperado: avatar
+   - Máximo 3 MB
+========================================= */
+
+const AVATAR_MAX_FILE_SIZE =
+  3 * 1024 * 1024;
+
+const AVATAR_ALLOWED_MIME_TYPES =
+  new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+  ]);
+
+const AVATAR_ALLOWED_EXTENSIONS =
+  new Set([
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+  ]);
+
+const avatarUpload =
+  multer({
+    storage:
+      multer.memoryStorage(),
+
+    limits: {
+      files: 1,
+      fileSize:
+        AVATAR_MAX_FILE_SIZE,
+    },
+
+    fileFilter: (
+      req,
+      file,
+      callback
+    ) => {
+      const extension =
+        path
+          .extname(
+            file.originalname ||
+            ""
+          )
+          .toLowerCase();
+
+      const mimeType =
+        String(
+          file.mimetype ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      if (
+        !AVATAR_ALLOWED_MIME_TYPES.has(
+          mimeType
+        ) ||
+        !AVATAR_ALLOWED_EXTENSIONS.has(
+          extension
+        )
+      ) {
+        const error =
+          new Error(
+            "La foto de perfil debe ser JPG, JPEG, PNG o WEBP"
+          );
+
+        error.status = 400;
+        error.code =
+          "PROFILE_AVATAR_FILE_TYPE_INVALID";
+
+        return callback(
+          error
+        );
+      }
+
+      return callback(
+        null,
+        true
+      );
+    },
+  });
+
+export const avatarUploadMiddleware =
+  (req, res, next) => {
+    avatarUpload.single(
+      "avatar"
+    )(
+      req,
+      res,
+      (error) => {
+        if (!error) {
+          return next();
+        }
+
+        if (
+          error instanceof
+            multer.MulterError
+        ) {
+          if (
+            error.code ===
+            "LIMIT_FILE_SIZE"
+          ) {
+            return res
+              .status(413)
+              .json({
+                success: false,
+                message:
+                  "La foto de perfil supera el máximo permitido de 3 MB",
+                code:
+                  "PROFILE_AVATAR_FILE_TOO_LARGE",
+              });
+          }
+
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message:
+                "No fue posible procesar la foto de perfil",
+              code:
+                error.code ||
+                "PROFILE_AVATAR_UPLOAD_ERROR",
+            });
+        }
+
+        return res
+          .status(
+            error.status ||
+            400
+          )
+          .json({
+            success: false,
+            message:
+              error.message ||
+              "Foto de perfil inválida",
+            code:
+              error.code ||
+              "PROFILE_AVATAR_UPLOAD_ERROR",
+          });
+      }
+    );
+  };
+

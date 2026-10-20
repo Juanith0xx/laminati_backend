@@ -23,6 +23,16 @@ import {
 } from "../services/relbase.service.js";
 
 import {
+  getRelbaseDteHistorySyncState,
+  syncRelbaseDteHistory,
+  getRelbaseDteHistoryCustomerSyncState,
+  syncRelbaseDteHistoryCustomers,
+  listRelbaseDteHistory,
+  getRelbaseDteHistorySummary,
+  getRelbaseDteHistoryDetail,
+} from "../services/relbaseDteHistory.service.js";
+
+import {
 
   normalizeRelbaseDteRecord,
 
@@ -3225,6 +3235,951 @@ export const probeRelbaseDteV2Auth =
 *   - NO emite documentos.*
 
 *========================================= */
+
+
+/* =========================================
+   PREVIEW HISTÓRICO DTE RELBASE
+   FASE 2 - SOLO LECTURA
+
+   - Consulta Facturas (33) y/o Boletas (39).
+   - Clasifica origen LAMINATIWORD / RELBASE.
+   - NO hace INSERT.
+   - NO hace UPDATE.
+   - NO hace DELETE.
+   - NO emite documentos.
+========================================= */
+export const previewRelbaseDteHistory =
+  async (req, res) => {
+    try {
+      const rawType = String(
+        req.query.type_document || "ALL"
+      )
+        .trim()
+        .toUpperCase();
+
+      const page = Number(
+        req.query.page || 1
+      );
+
+      if (
+        !Number.isInteger(page) ||
+        page < 1
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "page debe ser un entero mayor o igual a 1",
+          code:
+            "INVALID_DTE_HISTORY_PAGE",
+        });
+      }
+
+      let typeDocuments = [];
+
+      if (rawType === "ALL") {
+        typeDocuments = [33, 39];
+      } else {
+        const parsedType = Number(rawType);
+
+        if (![33, 39].includes(parsedType)) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "type_document debe ser ALL, 33 (FACTURA) o 39 (BOLETA)",
+            code:
+              "INVALID_DTE_HISTORY_TYPE",
+          });
+        }
+
+        typeDocuments = [parsedType];
+      }
+
+      const pages = [];
+      const allRecords = [];
+
+      /*
+       * Consultamos secuencialmente para ser
+       * conservadores con el rate limit de Relbase.
+       */
+      for (const typeDocument of typeDocuments) {
+        const endpoint =
+          `/api/v2/dtes?type_document=${encodeURIComponent(
+            typeDocument
+          )}&page=${encodeURIComponent(page)}`;
+
+        const result = await relbaseRequest(
+          endpoint,
+          {
+            method: "GET",
+          }
+        );
+
+        const payload =
+          result?.data || null;
+
+        const dataContainer =
+          payload?.data || null;
+
+        let collectionPath = null;
+        let records = [];
+
+        if (Array.isArray(dataContainer)) {
+          collectionPath = "data";
+          records = dataContainer;
+        } else if (
+          Array.isArray(
+            dataContainer?.dtes
+          )
+        ) {
+          collectionPath = "data.dtes";
+          records = dataContainer.dtes;
+        } else if (
+          Array.isArray(
+            dataContainer?.documents
+          )
+        ) {
+          collectionPath =
+            "data.documents";
+          records =
+            dataContainer.documents;
+        } else if (
+          Array.isArray(
+            dataContainer?.resources
+          )
+        ) {
+          collectionPath =
+            "data.resources";
+          records =
+            dataContainer.resources;
+        } else {
+          return res.status(502).json({
+            success: false,
+            message:
+              "Relbase respondió con una estructura DTE v2 no reconocida",
+            code:
+              "RELBASE_DTE_HISTORY_LIST_INVALID",
+            data: {
+              read_only: true,
+              type_document:
+                typeDocument,
+              page,
+              endpoint:
+                `GET ${endpoint}`,
+            },
+          });
+        }
+
+        pages.push({
+          type_document:
+            typeDocument,
+          document_type:
+            typeDocument === 33
+              ? "FACTURA"
+              : "BOLETA",
+          endpoint:
+            `GET ${endpoint}`,
+          page,
+          collection_path:
+            collectionPath,
+          records_on_page:
+            records.length,
+          rate_limit:
+            result?.rateLimit || null,
+          meta:
+            payload?.meta || null,
+        });
+
+        for (const record of records) {
+          allRecords.push({
+            typeDocument,
+            record,
+          });
+        }
+      }
+
+      const relbaseIds = [
+        ...new Set(
+          allRecords
+            .map(({ record }) =>
+              String(
+                record?.id ?? ""
+              ).trim()
+            )
+            .filter(Boolean)
+        ),
+      ];
+
+      let localDocuments = [];
+
+      if (relbaseIds.length > 0) {
+        const localResult =
+          await pool.query(
+            `
+              SELECT
+                td.id AS laminatiword_tax_document_id,
+                td.order_id,
+                td.relbase_document_id,
+                td.document_type AS local_document_type,
+                td.folio AS local_folio,
+                td.status AS local_status,
+                o.order_number
+              FROM tax_documents td
+              LEFT JOIN orders o
+                ON o.id = td.order_id
+              WHERE td.relbase_document_id = ANY($1::text[])
+            `,
+            [relbaseIds]
+          );
+
+        localDocuments =
+          localResult.rows || [];
+      }
+
+      const localByRelbaseId =
+        new Map(
+          localDocuments.map(
+            (item) => [
+              String(
+                item.relbase_document_id
+              ),
+              item,
+            ]
+          )
+        );
+
+      const toOptionalString =
+        (value) => {
+          if (
+            value === undefined ||
+            value === null
+          ) {
+            return null;
+          }
+
+          const normalized =
+            String(value).trim();
+
+          return normalized || null;
+        };
+
+      const toOptionalNumber =
+        (value) => {
+          if (
+            value === undefined ||
+            value === null ||
+            value === ""
+          ) {
+            return null;
+          }
+
+          const normalized =
+            Number(value);
+
+          return Number.isFinite(
+            normalized
+          )
+            ? normalized
+            : null;
+        };
+
+      const resolveAmount =
+        (record, realKey, baseKey) => {
+          const realValue =
+            toOptionalNumber(
+              record?.[realKey]
+            );
+
+          if (realValue !== null) {
+            return realValue;
+          }
+
+          return toOptionalNumber(
+            record?.[baseKey]
+          );
+        };
+
+      const documents =
+        allRecords.map(
+          ({
+            typeDocument,
+            record,
+          }) => {
+            const relbaseDocumentId =
+              toOptionalString(
+                record?.id
+              );
+
+            const localDocument =
+              relbaseDocumentId
+                ? localByRelbaseId.get(
+                    relbaseDocumentId
+                  ) || null
+                : null;
+
+            const comment =
+              toOptionalString(
+                record?.comment
+              );
+
+            const hasLaminatiMarker =
+              /^laminatiword(?:\s|$)/i.test(
+                comment || ""
+              );
+
+            const sourceSystem =
+              localDocument ||
+              hasLaminatiMarker
+                ? "LAMINATIWORD"
+                : "RELBASE";
+
+            const sourceDetection =
+              localDocument
+                ? "LOCAL_RELBASE_DOCUMENT_ID"
+                : hasLaminatiMarker
+                  ? "COMMENT_MARKER"
+                  : "EXTERNAL_ONLY";
+
+            return {
+              relbase_document_id:
+                relbaseDocumentId,
+
+              document_type:
+                typeDocument === 33
+                  ? "FACTURA"
+                  : "BOLETA",
+
+              sii_code:
+                typeDocument,
+
+              type_document_name:
+                toOptionalString(
+                  record?.type_document_name
+                ),
+
+              folio:
+                toOptionalString(
+                  record?.folio
+                ),
+
+              track_id:
+                toOptionalString(
+                  record?.track_id
+                ),
+
+              relbase_status:
+                toOptionalString(
+                  record?.status
+                ),
+
+              sii_status:
+                toOptionalString(
+                  record?.sii_status
+                ),
+
+              sii_status_name:
+                toOptionalString(
+                  record?.sii_status_name
+                ),
+
+              amounts: {
+                net:
+                  resolveAmount(
+                    record,
+                    "real_amount_neto",
+                    "amount_neto"
+                  ),
+
+                iva:
+                  resolveAmount(
+                    record,
+                    "real_amount_iva",
+                    "amount_iva"
+                  ),
+
+                tax:
+                  resolveAmount(
+                    record,
+                    "real_amount_tax",
+                    "amount_tax"
+                  ),
+
+                exempt:
+                  resolveAmount(
+                    record,
+                    "real_amount_exempt",
+                    "amount_exempt"
+                  ),
+
+                total:
+                  resolveAmount(
+                    record,
+                    "real_amount_total",
+                    "amount_total"
+                  ),
+              },
+
+              dates: {
+                start_date:
+                  toOptionalString(
+                    record?.start_date
+                  ),
+
+                end_date:
+                  toOptionalString(
+                    record?.end_date
+                  ),
+
+                created_at:
+                  toOptionalString(
+                    record?.created_at
+                  ),
+
+                updated_at:
+                  toOptionalString(
+                    record?.updated_at
+                  ),
+              },
+
+              comment,
+
+              source_system:
+                sourceSystem,
+
+              source_detection:
+                sourceDetection,
+
+              laminatiword: {
+                matched:
+                  Boolean(localDocument),
+
+                tax_document_id:
+                  localDocument
+                    ?.laminatiword_tax_document_id ||
+                  null,
+
+                order_id:
+                  localDocument
+                    ?.order_id || null,
+
+                order_number:
+                  localDocument
+                    ?.order_number || null,
+
+                local_status:
+                  localDocument
+                    ?.local_status || null,
+              },
+            };
+          }
+        );
+
+      const firstRawRecord =
+        allRecords[0]?.record || null;
+
+      const recordKeys =
+        firstRawRecord &&
+        typeof firstRawRecord === "object"
+          ? Object.keys(
+              firstRawRecord
+            ).slice(0, 100)
+          : [];
+
+      const possibleCustomerKeys =
+        recordKeys.filter(
+          (key) =>
+            /(customer|client|cliente|rut|receiver|receptor|razon|name|nombre)/i.test(
+              key
+            )
+        );
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Preview histórico DTE Relbase generado correctamente",
+        data: {
+          read_only: true,
+          persistence_executed:
+            false,
+          emission_executed:
+            false,
+          relbase_requests:
+            pages.length,
+          page,
+          requested_type_document:
+            rawType,
+          pages,
+          summary: {
+            total_documents:
+              documents.length,
+            laminatiword:
+              documents.filter(
+                (item) =>
+                  item.source_system ===
+                  "LAMINATIWORD"
+              ).length,
+            relbase:
+              documents.filter(
+                (item) =>
+                  item.source_system ===
+                  "RELBASE"
+              ).length,
+            facturas:
+              documents.filter(
+                (item) =>
+                  item.sii_code === 33
+              ).length,
+            boletas:
+              documents.filter(
+                (item) =>
+                  item.sii_code === 39
+              ).length,
+          },
+          schema_probe: {
+            first_record_keys:
+              recordKeys,
+            possible_customer_keys:
+              possibleCustomerKeys,
+          },
+          documents,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error preview histórico DTE Relbase:",
+        {
+          message:
+            error.message,
+          status:
+            error.status || null,
+          code:
+            error.code || null,
+        }
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible generar el preview histórico DTE de Relbase",
+        code:
+          error.code ||
+          "RELBASE_DTE_HISTORY_PREVIEW_ERROR",
+        relbase_status:
+          error.status || null,
+        relbase_response:
+          error.relbaseData || null,
+      });
+    }
+  };
+
+/* =========================================
+   ESTADO SINCRONIZACIÓN HISTÓRICA DTE
+   FASE 3
+========================================= */
+export const getRelbaseDteHistorySyncStateController =
+  async (req, res) => {
+    try {
+      const state =
+        await getRelbaseDteHistorySyncState();
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Estado de sincronización histórica DTE obtenido correctamente",
+        data: {
+          emission_executed: false,
+          relbase_write_executed: false,
+          state,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error obteniendo estado histórico DTE:",
+        error
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible obtener el estado de sincronización histórica DTE",
+        code:
+          error.code ||
+          "RELBASE_DTE_HISTORY_STATE_ERROR",
+      });
+    }
+  };
+
+/* =========================================
+   SINCRONIZAR HISTÓRICO DTE RELBASE
+   FASE 3
+
+   IMPORTANTE:
+   - Sólo GET hacia Relbase.
+   - Persiste únicamente el espejo histórico local.
+   - NO emite documentos.
+   - NO modifica DTE en Relbase.
+   - Usa checkpoint por tipo 33 / 39.
+========================================= */
+export const syncRelbaseDteHistoryController =
+  async (req, res) => {
+    try {
+      const typeDocument =
+        Number(
+          req.body?.type_document
+        );
+
+      const maxPages =
+        req.body?.max_pages ?? 25;
+
+      const data =
+        await syncRelbaseDteHistory({
+          typeDocument,
+          maxPages,
+        });
+
+      return res.status(200).json({
+        success: true,
+        message:
+          data.already_completed
+            ? "El histórico DTE para este tipo ya se encuentra completo"
+            : "Lote histórico DTE sincronizado correctamente",
+        data: {
+          ...data,
+          persistence_executed: true,
+          emission_executed: false,
+          relbase_write_executed: false,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error sincronizando histórico DTE Relbase:",
+        {
+          message:
+            error.message,
+          status:
+            error.status || null,
+          code:
+            error.code || null,
+        }
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible sincronizar el histórico DTE de Relbase",
+        code:
+          error.code ||
+          "RELBASE_DTE_HISTORY_SYNC_ERROR",
+        relbase_status:
+          error.status || null,
+        relbase_response:
+          error.relbaseData || null,
+      });
+    }
+  };
+
+
+
+/* =========================================
+   ESTADO ENRIQUECIMIENTO CLIENTES DTE
+   FASE 5.1
+========================================= */
+export const getRelbaseDteHistoryCustomerSyncStateController =
+  async (req, res) => {
+    try {
+      const state =
+        await getRelbaseDteHistoryCustomerSyncState();
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Estado de enriquecimiento de clientes DTE obtenido correctamente",
+        data: {
+          state,
+          emission_executed: false,
+          relbase_write_executed: false,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error obteniendo estado de enriquecimiento de clientes DTE:",
+        error
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible obtener el estado de enriquecimiento de clientes DTE",
+        code:
+          error.code ||
+          "RELBASE_DTE_CUSTOMER_HISTORY_STATE_ERROR",
+      });
+    }
+  };
+
+/* =========================================
+   ENRIQUECER CLIENTES HISTÓRICO DTE
+   FASE 5.1
+
+   - GET /api/v2/clientes hacia Relbase.
+   - UPDATE sólo en PostgreSQL local.
+   - NO emite DTE.
+   - NO escribe en Relbase.
+========================================= */
+export const syncRelbaseDteHistoryCustomersController =
+  async (req, res) => {
+    try {
+      const data =
+        await syncRelbaseDteHistoryCustomers({
+          maxPages:
+            req.body?.max_pages ?? 25,
+        });
+
+      return res.status(200).json({
+        success: true,
+        message:
+          data.already_completed
+            ? "El enriquecimiento de clientes DTE ya se encuentra completo"
+            : "Lote de clientes DTE enriquecido correctamente",
+        data: {
+          ...data,
+          persistence_executed: true,
+          emission_executed: false,
+          relbase_write_executed: false,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error enriqueciendo clientes del histórico DTE:",
+        {
+          message:
+            error.message,
+          status:
+            error.status || null,
+          code:
+            error.code || null,
+        }
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible enriquecer los clientes del histórico DTE",
+        code:
+          error.code ||
+          "RELBASE_DTE_CUSTOMER_HISTORY_SYNC_ERROR",
+        relbase_status:
+          error.status || null,
+        relbase_response:
+          error.relbaseData || null,
+      });
+    }
+  };
+
+
+/* =========================================
+   CONSULTAR HISTÓRICO DTE LOCAL
+   FASE 4
+
+   - Lee PostgreSQL.
+   - NO consulta Relbase.
+   - NO emite documentos.
+========================================= */
+export const listRelbaseDteHistoryController =
+  async (req, res) => {
+    try {
+      const data =
+        await listRelbaseDteHistory({
+          page:
+            req.query.page ?? 1,
+          limit:
+            req.query.limit ?? 50,
+          documentType:
+            req.query.document_type,
+          sourceSystem:
+            req.query.source_system,
+          siiStatus:
+            req.query.sii_status,
+          relbaseStatus:
+            req.query.relbase_status,
+          from:
+            req.query.from,
+          to:
+            req.query.to,
+          search:
+            req.query.search,
+        });
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Histórico DTE obtenido correctamente",
+        data: {
+          ...data,
+          source: "POSTGRESQL",
+          relbase_requests: 0,
+          emission_executed: false,
+          relbase_write_executed: false,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error listando histórico DTE:",
+        {
+          message:
+            error.message,
+          status:
+            error.status || null,
+          code:
+            error.code || null,
+        }
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible obtener el histórico DTE",
+        code:
+          error.code ||
+          "DTE_HISTORY_LIST_ERROR",
+      });
+    }
+  };
+
+/* =========================================
+   RESUMEN HISTÓRICO DTE LOCAL
+   FASE 4
+========================================= */
+export const getRelbaseDteHistorySummaryController =
+  async (req, res) => {
+    try {
+      const summary =
+        await getRelbaseDteHistorySummary({
+          documentType:
+            req.query.document_type,
+          sourceSystem:
+            req.query.source_system,
+          siiStatus:
+            req.query.sii_status,
+          relbaseStatus:
+            req.query.relbase_status,
+          from:
+            req.query.from,
+          to:
+            req.query.to,
+          search:
+            req.query.search,
+        });
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Resumen histórico DTE obtenido correctamente",
+        data: {
+          summary,
+          source: "POSTGRESQL",
+          relbase_requests: 0,
+          emission_executed: false,
+          relbase_write_executed: false,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error obteniendo resumen histórico DTE:",
+        {
+          message:
+            error.message,
+          status:
+            error.status || null,
+          code:
+            error.code || null,
+        }
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible obtener el resumen histórico DTE",
+        code:
+          error.code ||
+          "DTE_HISTORY_SUMMARY_ERROR",
+      });
+    }
+  };
+
+/* =========================================
+   DETALLE HISTÓRICO DTE LOCAL
+   FASE 4
+
+   Acepta UUID local del histórico o
+   relbase_document_id.
+========================================= */
+export const getRelbaseDteHistoryDetailController =
+  async (req, res) => {
+    try {
+      const document =
+        await getRelbaseDteHistoryDetail(
+          req.params.id
+        );
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Detalle histórico DTE obtenido correctamente",
+        data: {
+          document,
+          source: "POSTGRESQL",
+          relbase_requests: 0,
+          emission_executed: false,
+          relbase_write_executed: false,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "Error obteniendo detalle histórico DTE:",
+        {
+          message:
+            error.message,
+          status:
+            error.status || null,
+          code:
+            error.code || null,
+        }
+      );
+
+      return res.status(
+        error.status || 500
+      ).json({
+        success: false,
+        message:
+          error.message ||
+          "No fue posible obtener el detalle histórico DTE",
+        code:
+          error.code ||
+          "DTE_HISTORY_DETAIL_ERROR",
+      });
+    }
+  };
 
 export const previewRelbaseDteSync =
 
