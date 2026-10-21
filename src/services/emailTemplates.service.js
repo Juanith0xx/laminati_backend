@@ -167,10 +167,14 @@ const buildDocumentMeta = (row) => {
 export const buildQuotationEmail = ({
   quotation,
   to,
+  quotationUrl,
+  openPixelUrl,
 }) => {
   const recipient =
     cleanText(to) ||
-    cleanText(quotation?.email);
+    cleanText(
+      quotation?.email
+    );
 
   const quoteNumber =
     cleanText(
@@ -199,9 +203,12 @@ export const buildQuotationEmail = ({
       ? new Intl.DateTimeFormat(
           "es-CL",
           {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
+            day:
+              "2-digit",
+            month:
+              "2-digit",
+            year:
+              "numeric",
           }
         ).format(
           new Date(
@@ -210,26 +217,66 @@ export const buildQuotationEmail = ({
         )
       : "";
 
+  const safeQuotationUrl =
+    cleanText(
+      quotationUrl
+    );
+
+  if (
+    !/^https?:\/\//i.test(
+      safeQuotationUrl
+    )
+  ) {
+    const error =
+      new Error(
+        "quotationUrl debe ser una URL absoluta http/https"
+      );
+
+    error.code =
+      "QUOTATION_EMAIL_VIEW_URL_INVALID";
+
+    throw error;
+  }
+
+  const safeOpenPixelUrl =
+    cleanText(
+      openPixelUrl
+    );
+
+  const hasOpenPixel =
+    /^https?:\/\//i.test(
+      safeOpenPixelUrl
+    );
+
   const subject =
-    `Cotización ${quoteNumber} | Laminati`;
+    `Cotización ${quoteNumber} · Laminati`;
 
   const text = [
     `Hola ${customerName},`,
     "",
-    "Adjuntamos tu cotización de Laminati.",
+    "Tu cotización de Laminati ya está disponible.",
     "",
     `Cotización: ${quoteNumber}`,
     `Total: ${total}`,
+
     validUntil
       ? `Válida hasta: ${validUntil}`
       : "",
+
     "",
-    "El PDF de la cotización se encuentra adjunto a este correo.",
+    "Ver cotización:",
+    safeQuotationUrl,
+    "",
+    "Desde este enlace podrás revisar la cotización y acceder al documento.",
     "",
     "Laminati",
   ]
-    .filter(Boolean)
-    .join("\n");
+    .filter(
+      Boolean
+    )
+    .join(
+      "\n"
+    );
 
   const html = `<!doctype html>
 <html lang="es">
@@ -243,63 +290,136 @@ export const buildQuotationEmail = ({
                 <div style="font-size:25px;font-weight:700;letter-spacing:-0.4px;">Laminati</div>
               </td>
             </tr>
+
             <tr>
               <td style="padding:22px 38px 38px 38px;">
-                <div style="font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#777777;">Cotización</div>
+                <div style="font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#777777;">
+                  Cotización
+                </div>
 
                 <h1 style="margin:10px 0 16px 0;font-size:29px;line-height:1.2;font-weight:600;letter-spacing:-0.8px;">
-                  ${escapeHtml(quoteNumber)}
+                  ${escapeHtml(
+                    quoteNumber
+                  )}
                 </h1>
 
                 <p style="margin:0 0 24px 0;font-size:15px;line-height:1.7;color:#555555;">
-                  Hola ${escapeHtml(customerName)}, adjuntamos la cotización solicitada.
+                  Hola ${escapeHtml(
+                    customerName
+                  )}, tu cotización ya está disponible para revisar.
                 </p>
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8f8f8;border-radius:14px;margin:0 0 24px 0;">
                   <tr>
-                    <td style="padding:20px 22px 7px 22px;font-size:13px;color:#777777;">Cotización</td>
-                    <td align="right" style="padding:20px 22px 7px 22px;font-size:14px;font-weight:700;">${escapeHtml(quoteNumber)}</td>
+                    <td style="padding:20px 22px 7px 22px;font-size:13px;color:#777777;">
+                      Cotización
+                    </td>
+
+                    <td align="right" style="padding:20px 22px 7px 22px;font-size:14px;font-weight:700;">
+                      ${escapeHtml(
+                        quoteNumber
+                      )}
+                    </td>
                   </tr>
+
                   <tr>
-                    <td style="padding:7px 22px;font-size:13px;color:#777777;">Total</td>
-                    <td align="right" style="padding:7px 22px;font-size:14px;font-weight:700;">${escapeHtml(total)}</td>
+                    <td style="padding:7px 22px;font-size:13px;color:#777777;">
+                      Total
+                    </td>
+
+                    <td align="right" style="padding:7px 22px;font-size:14px;font-weight:700;">
+                      ${escapeHtml(
+                        total
+                      )}
+                    </td>
                   </tr>
+
                   ${
                     validUntil
                       ? `<tr>
-                    <td style="padding:7px 22px 20px 22px;font-size:13px;color:#777777;">Válida hasta</td>
-                    <td align="right" style="padding:7px 22px 20px 22px;font-size:14px;font-weight:700;">${escapeHtml(validUntil)}</td>
+                    <td style="padding:7px 22px 20px 22px;font-size:13px;color:#777777;">
+                      Válida hasta
+                    </td>
+
+                    <td align="right" style="padding:7px 22px 20px 22px;font-size:14px;font-weight:700;">
+                      ${escapeHtml(
+                        validUntil
+                      )}
+                    </td>
                   </tr>`
                       : ""
                   }
                 </table>
 
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px 0;">
+                  <tr>
+                    <td bgcolor="#111111" style="border-radius:999px;">
+                      <a
+                        href="${escapeHtml(
+                          safeQuotationUrl
+                        )}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:13px;font-weight:700;letter-spacing:0.2px;"
+                      >
+                        VER COTIZACIÓN
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
                 <p style="margin:0;font-size:14px;line-height:1.7;color:#555555;">
-                  Encontrarás el documento PDF adjunto a este correo.
+                  Desde el enlace seguro podrás revisar la cotización y acceder al documento. Por seguridad y para mantener la trazabilidad, el PDF ya no se adjunta directamente al correo.
+                </p>
+
+                <p style="margin:18px 0 0 0;font-size:11px;line-height:1.6;color:#999999;word-break:break-all;">
+                  Si el botón no funciona, copia este enlace en tu navegador:<br>
+                  <a
+                    href="${escapeHtml(
+                      safeQuotationUrl
+                    )}"
+                    style="color:#777777;text-decoration:underline;"
+                  >
+                    ${escapeHtml(
+                      safeQuotationUrl
+                    )}
+                  </a>
                 </p>
               </td>
             </tr>
+
             <tr>
               <td style="border-top:1px solid #eeeeee;padding:22px 38px 28px 38px;font-size:11px;line-height:1.6;color:#999999;">
-                Correo transaccional de Laminati asociado a la cotización ${escapeHtml(quoteNumber)}.
+                Correo transaccional de Laminati asociado a la cotización ${escapeHtml(
+                  quoteNumber
+                )}. El enlace es personal y no debe compartirse.
               </td>
             </tr>
           </table>
         </td>
       </tr>
     </table>
+
+    ${
+      hasOpenPixel
+        ? `<img src="${escapeHtml(
+            safeOpenPixelUrl
+          )}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;opacity:0;" />`
+        : ""
+    }
   </body>
 </html>`;
 
   return {
-    to: recipient,
+    to:
+      recipient,
     subject,
     text,
     html,
-    attachments: [],
+    attachments:
+      [],
   };
 };
-
 
 export const buildDteAcceptedEmail = async ({
   row,

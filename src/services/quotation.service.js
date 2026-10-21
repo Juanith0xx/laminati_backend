@@ -1290,6 +1290,25 @@ export const createQuotation = async ({
 }) => {
   const userId = requireUuid(createdBy, "createdBy");
   const payload = body || {};
+
+  const quotationType =
+    cleanText(
+      payload.quotation_type ||
+        "STANDARD"
+    ).toUpperCase();
+
+  if (
+    quotationType ===
+    "PROJECT"
+  ) {
+    return createProjectQuotation({
+      createdBy:
+        userId,
+      body:
+        payload,
+    });
+  }
+
   const items = normalizeItems(payload.items);
   const customer = normalizeCustomerSnapshot(payload);
   const validUntil = resolveValidUntil(payload.valid_days);
@@ -1585,6 +1604,62 @@ export const updateQuotation = async ({
 }) => {
   const id = requireUuid(quotationId, "quotationId");
   const payload = body || {};
+
+  const requestedQuotationType =
+    cleanText(
+      payload.quotation_type ||
+        "STANDARD"
+    ).toUpperCase();
+
+  if (
+    ![
+      "STANDARD",
+      "PROJECT",
+    ].includes(
+      requestedQuotationType
+    )
+  ) {
+    throw createServiceError(
+      "quotation_type debe ser STANDARD o PROJECT",
+      400,
+      "QUOTATION_TYPE_INVALID"
+    );
+  }
+
+  const convertingToProject =
+    requestedQuotationType ===
+    "PROJECT";
+
+  const projectName =
+    convertingToProject
+      ? cleanText(
+          payload.project_name
+        )
+      : null;
+
+  if (
+    convertingToProject &&
+    !projectName
+  ) {
+    throw createServiceError(
+      "El nombre del proyecto es obligatorio",
+      400,
+      "QUOTATION_PROJECT_NAME_REQUIRED"
+    );
+  }
+
+  const projectReference =
+    convertingToProject
+      ? optionalText(
+          payload.project_reference
+        )
+      : null;
+
+  const visibleToItaly =
+    convertingToProject &&
+    payload.visible_to_italy ===
+      true;
+
   const requestedItems = normalizeItems(payload.items);
   const customer = normalizeCustomerSnapshot(payload);
   const notes = optionalText(payload.notes);
@@ -1984,11 +2059,32 @@ export const updateQuotation = async ({
             region = $14,
             country = $15,
             relbase_customer_id = $16,
-            net_total = $17,
-            tax_total = $18,
-            total = $19,
-            valid_until = $20,
-            notes = $21,
+
+            quotation_type = $17,
+            project_name = $18,
+            project_reference = $19,
+
+            visible_to_italy = $20,
+
+            italy_visibility_set_at =
+              CASE
+                WHEN $20 = TRUE
+                  THEN NOW()
+                ELSE NULL
+              END,
+
+            italy_visibility_set_by =
+              CASE
+                WHEN $20 = TRUE
+                  THEN created_by
+                ELSE NULL
+              END,
+
+            net_total = $21,
+            tax_total = $22,
+            total = $23,
+            valid_until = $24,
+            notes = $25,
             status = 'DRAFT',
             sent_at = NULL
           WHERE id = $1
@@ -2011,6 +2107,23 @@ export const updateQuotation = async ({
           customer.region,
           customer.country,
           relbaseCustomerId,
+
+          convertingToProject
+            ? "PROJECT"
+            : "STANDARD",
+
+          convertingToProject
+            ? projectName
+            : null,
+
+          convertingToProject
+            ? projectReference
+            : null,
+
+          convertingToProject
+            ? visibleToItaly
+            : false,
+
           netTotal,
           taxTotal,
           total,
@@ -2024,12 +2137,157 @@ export const updateQuotation = async ({
         DELETE FROM quotation_items
         WHERE quotation_id = $1
       `,
-      [id]
+      [
+        id,
+      ]
     );
 
-    const insertedItems = [];
+    /*
+     * Conversión STANDARD -> PROJECT:
+     * - conserva quotation.id y quote_number;
+     * - migra las líneas comerciales existentes;
+     * - conserva los precios CLP de la cotización;
+     * - el trigger de Fase 5 congela Precio Italia
+     *   sólo para productos ABET LAMINATI.
+     */
+    if (
+      convertingToProject
+    ) {
+      await client.query(
+        `
+          DELETE FROM quotation_project_lines
+          WHERE quotation_id = $1
+        `,
+        [
+          id,
+        ]
+      );
 
-    for (const item of resolvedItems) {
+      const projectLines =
+        resolvedItems.map(
+          (
+            item,
+            index
+          ) => {
+            const isShipping =
+              isFexShippingSku(
+                item.sku
+              );
+
+            return {
+              line_type:
+                isShipping
+                  ? "SERVICE"
+                  : "PRODUCT",
+
+              product_id:
+                isShipping
+                  ? null
+                  : item.product_id,
+
+              description:
+                item.product_name,
+
+              code:
+                item.sku,
+
+              finish:
+                null,
+
+              thickness_mm:
+                null,
+
+              quantity:
+                item.quantity,
+
+              unit:
+                "UN",
+
+              format_label:
+                null,
+
+              width_cm:
+                null,
+
+              height_cm:
+                null,
+
+              price_m2_gross:
+                null,
+
+              unit_price_gross:
+                item.unit_price_gross,
+
+              line_total_gross:
+                item.line_total,
+
+              tax_rate:
+                item.tax_rate,
+
+              pricing_mode:
+                "UNIT",
+
+              sort_order:
+                index,
+            };
+          }
+        );
+
+      const resolvedProjectLines =
+        await resolveProjectLines({
+          lines:
+            normalizeProjectLines(
+              projectLines
+            ),
+          client,
+        });
+
+      const insertedProjectLines =
+        await insertProjectLines({
+          quotationId:
+            id,
+          lines:
+            resolvedProjectLines,
+          client,
+        });
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        quotation:
+          quotationResult.rows[0],
+
+        items:
+          [],
+
+        project_lines:
+          insertedProjectLines,
+
+        edited:
+          true,
+
+        converted_to_project:
+          true,
+
+        previous_status:
+          currentQuotation.status,
+      };
+    }
+
+    /*
+     * STANDARD:
+     * fuerza visible_to_italy = FALSE para
+     * mantener la regla de seguridad.
+     */
+    const insertedItems =
+      [];
+
+    for (
+      const item
+      of resolvedItems
+    ) {
       const itemResult =
         await client.query(
           `
@@ -2071,15 +2329,23 @@ export const updateQuotation = async ({
       );
     }
 
-    await client.query("COMMIT");
+    await client.query(
+      "COMMIT"
+    );
 
     return {
       quotation:
         quotationResult.rows[0],
+
       items:
         insertedItems,
+
       edited:
         true,
+
+      converted_to_project:
+        false,
+
       previous_status:
         currentQuotation.status,
     };
@@ -2140,6 +2406,11 @@ export const createProjectQuotation =
         payload
           .project_reference
       );
+
+    const visibleToItaly =
+      payload
+        .visible_to_italy ===
+        true;
 
     const validUntil =
       resolveValidUntil(
@@ -2232,6 +2503,9 @@ export const createProjectQuotation =
               quotation_type,
               project_name,
               project_reference,
+              visible_to_italy,
+              italy_visibility_set_at,
+              italy_visibility_set_by,
               net_total,
               tax_total,
               total,
@@ -2240,7 +2514,10 @@ export const createProjectQuotation =
             )
             VALUES (
               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-              $13,$14,$15,$16,'PROJECT',$17,$18,$19,$20,$21,$22,$23
+              $13,$14,$15,$16,'PROJECT',$17,$18,$19,
+              CASE WHEN $19 THEN NOW() ELSE NULL END,
+              CASE WHEN $19 THEN $1 ELSE NULL END,
+              $20,$21,$22,$23,$24
             )
             RETURNING *
           `,
@@ -2278,6 +2555,7 @@ export const createProjectQuotation =
               .relbase_customer_id,
             projectName,
             projectReference,
+            visibleToItaly,
             netTotal,
             taxTotal,
             total,
@@ -3223,10 +3501,8 @@ export const emailQuotation = async ({ quotationId }) => {
     quotation,
     items,
     project_lines,
-    buffer,
-    filename,
   } =
-    await getQuotationPdf({
+    await getQuotationById({
       quotationId,
     });
 
@@ -3257,16 +3533,20 @@ export const emailQuotation = async ({ quotationId }) => {
       openPixelUrl: tracking.open_pixel_url,
     });
 
+    /*
+     * IMPORTANTE:
+     * No adjuntamos el PDF.
+     *
+     * El cliente debe entrar por quotation_url para que
+     * Laminatiword pueda registrar el evento VIEW.
+     *
+     * El PDF/documento seguirá disponible desde la
+     * experiencia pública de la cotización.
+     */
     info = await sendTransactionalEmail({
       ...emailTemplate,
       messageId: `<quotation-${tracking.email_message_id}@laminatiword.local>`,
-      attachments: [
-        {
-          filename,
-          content: buffer,
-          contentType: "application/pdf",
-        },
-      ],
+      attachments: [],
     });
   } catch (error) {
     try {

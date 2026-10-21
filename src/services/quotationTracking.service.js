@@ -63,33 +63,201 @@ const hashIp = (ipAddress) => {
     .digest("hex");
 };
 
-const getPublicBaseUrl = () => {
-  const value = cleanText(
-    process.env.EMAIL_PUBLIC_BASE_URL
-  );
-
-  if (!/^https?:\/\//i.test(value)) {
-    throw createTrackingError(
-      "EMAIL_PUBLIC_BASE_URL debe comenzar con http:// o https://",
-      500,
-      "QUOTATION_TRACKING_BASE_URL_INVALID"
+const normalizePublicBaseUrl = (
+  value,
+  {
+    addHttpsWhenMissing = false,
+  } = {}
+) => {
+  let normalized =
+    cleanText(
+      value
     );
+
+  if (
+    !normalized
+  ) {
+    return "";
   }
 
   if (
-    String(process.env.NODE_ENV || "")
-      .trim()
-      .toLowerCase() === "production" &&
-    !/^https:\/\//i.test(value)
+    addHttpsWhenMissing &&
+    !/^https?:\/\//i.test(
+      normalized
+    )
   ) {
+    normalized =
+      `https://${normalized}`;
+  }
+
+  if (
+    !/^https?:\/\//i.test(
+      normalized
+    )
+  ) {
+    return "";
+  }
+
+  try {
+    const url =
+      new URL(
+        normalized
+      );
+
+    /*
+     * La base pública debe ser sólo el origen.
+     * Las rutas /api/public/... se agregan más abajo.
+     */
+    return url.origin.replace(
+      /\/+$/,
+      ""
+    );
+  } catch {
+    return "";
+  }
+};
+
+const isTemporaryTunnelUrl = (
+  value
+) => {
+  if (
+    !value
+  ) {
+    return false;
+  }
+
+  try {
+    const hostname =
+      new URL(
+        value
+      )
+        .hostname
+        .toLowerCase();
+
+    return (
+      hostname.includes(
+        "ngrok"
+      ) ||
+      hostname.includes(
+        "loca.lt"
+      ) ||
+      hostname.includes(
+        "localtunnel"
+      )
+    );
+  } catch {
+    return false;
+  }
+};
+
+const getPublicBaseUrl = () => {
+  const isProduction =
+    String(
+      process.env.NODE_ENV ||
+        ""
+    )
+      .trim()
+      .toLowerCase() ===
+    "production";
+
+  const configuredBaseUrl =
+    normalizePublicBaseUrl(
+      process.env
+        .EMAIL_PUBLIC_BASE_URL
+    );
+
+  /*
+   * Railway expone normalmente el dominio público
+   * sin protocolo. Lo convertimos a HTTPS.
+   */
+  const railwayBaseUrl =
+    normalizePublicBaseUrl(
+      process.env
+        .RAILWAY_PUBLIC_DOMAIN,
+      {
+        addHttpsWhenMissing:
+          true,
+      }
+    );
+
+  /*
+   * En desarrollo seguimos permitiendo ngrok para
+   * pruebas locales.
+   */
+  if (
+    !isProduction
+  ) {
+    if (
+      configuredBaseUrl
+    ) {
+      return configuredBaseUrl;
+    }
+
+    if (
+      railwayBaseUrl
+    ) {
+      return railwayBaseUrl;
+    }
+
     throw createTrackingError(
-      "EMAIL_PUBLIC_BASE_URL debe usar HTTPS en producción",
+      "Configura EMAIL_PUBLIC_BASE_URL para generar enlaces públicos de cotización",
       500,
-      "QUOTATION_TRACKING_HTTPS_REQUIRED"
+      "QUOTATION_TRACKING_BASE_URL_MISSING"
     );
   }
 
-  return value.replace(/\/+$/, "");
+  /*
+   * Producción:
+   * - nunca usar ngrok/localtunnel;
+   * - si EMAIL_PUBLIC_BASE_URL es permanente, tiene prioridad;
+   * - si quedó un ngrok antiguo, usamos automáticamente
+   *   RAILWAY_PUBLIC_DOMAIN.
+   */
+  if (
+    configuredBaseUrl &&
+    !isTemporaryTunnelUrl(
+      configuredBaseUrl
+    )
+  ) {
+    if (
+      !/^https:\/\//i.test(
+        configuredBaseUrl
+      )
+    ) {
+      throw createTrackingError(
+        "EMAIL_PUBLIC_BASE_URL debe usar HTTPS en producción",
+        500,
+        "QUOTATION_TRACKING_HTTPS_REQUIRED"
+      );
+    }
+
+    return configuredBaseUrl;
+  }
+
+  if (
+    railwayBaseUrl
+  ) {
+    return railwayBaseUrl;
+  }
+
+  if (
+    configuredBaseUrl &&
+    isTemporaryTunnelUrl(
+      configuredBaseUrl
+    )
+  ) {
+    throw createTrackingError(
+      "EMAIL_PUBLIC_BASE_URL apunta a un túnel temporal. En producción configura la URL permanente de Railway.",
+      500,
+      "QUOTATION_TRACKING_TEMPORARY_URL_FORBIDDEN"
+    );
+  }
+
+  throw createTrackingError(
+    "No existe una URL pública permanente para el tracking. Configura EMAIL_PUBLIC_BASE_URL o RAILWAY_PUBLIC_DOMAIN.",
+    500,
+    "QUOTATION_TRACKING_BASE_URL_MISSING"
+  );
 };
 
 const getAccessTokenDays = () => {

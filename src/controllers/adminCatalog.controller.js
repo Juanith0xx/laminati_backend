@@ -29,6 +29,140 @@ import {
   generateSlug,
 } from "../utils/slug.js";
 
+
+/* =========================================
+   PRECIO ITALIA (USD)
+   - Histórico independiente del precio Chile.
+   - Sólo se usa desde endpoints administrativos.
+========================================= */
+const getCurrentItalyPriceUsd = async (
+  db,
+  productId
+) => {
+  const result = await db.query(
+    `
+      SELECT price_usd
+      FROM product_italy_prices
+      WHERE product_id = $1
+        AND valid_until IS NULL
+      ORDER BY valid_from DESC
+      LIMIT 1
+    `,
+    [productId]
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return Number(
+    result.rows[0].price_usd
+  );
+};
+
+const syncCurrentItalyPriceUsd = async ({
+  client,
+  productId,
+  priceUsd,
+  userId = null,
+}) => {
+  if (priceUsd === undefined) {
+    return getCurrentItalyPriceUsd(
+      client,
+      productId
+    );
+  }
+
+  const currentResult = await client.query(
+    `
+      SELECT
+        id,
+        price_usd
+      FROM product_italy_prices
+      WHERE product_id = $1
+        AND valid_until IS NULL
+      ORDER BY valid_from DESC
+      LIMIT 1
+      FOR UPDATE
+    `,
+    [productId]
+  );
+
+  const currentPrice =
+    currentResult.rowCount > 0
+      ? Number(
+          currentResult.rows[0].price_usd
+        )
+      : null;
+
+  if (priceUsd === null) {
+    if (currentResult.rowCount > 0) {
+      await client.query(
+        `
+          UPDATE product_italy_prices
+          SET valid_until = NOW()
+          WHERE id = $1
+        `,
+        [
+          currentResult.rows[0].id,
+        ]
+      );
+    }
+
+    return null;
+  }
+
+  const nextPrice =
+    Number(priceUsd);
+
+  if (
+    currentResult.rowCount > 0 &&
+    currentPrice === nextPrice
+  ) {
+    return currentPrice;
+  }
+
+  if (currentResult.rowCount > 0) {
+    await client.query(
+      `
+        UPDATE product_italy_prices
+        SET valid_until = NOW()
+        WHERE id = $1
+      `,
+      [
+        currentResult.rows[0].id,
+      ]
+    );
+  }
+
+  const insertResult = await client.query(
+    `
+      INSERT INTO product_italy_prices (
+        product_id,
+        price_usd,
+        valid_from,
+        created_by
+      )
+      VALUES (
+        $1,
+        $2,
+        NOW(),
+        $3
+      )
+      RETURNING price_usd
+    `,
+    [
+      productId,
+      nextPrice,
+      userId,
+    ]
+  );
+
+  return Number(
+    insertResult.rows[0].price_usd
+  );
+};
+
 import {
   ensureRelbaseProductForLocalProduct,
   lookupRelbaseProductBySku,
@@ -1844,6 +1978,7 @@ export const getAdminProducts = async (req, res) => {
         weight_kg,
 
         base_price,
+        italy_price.italy_price_usd,
         tax_rate,
 
         promotional_price,
@@ -1895,6 +2030,17 @@ export const getAdminProducts = async (req, res) => {
         updated_at
 
       FROM vw_product_catalog
+
+      LEFT JOIN LATERAL (
+        SELECT
+          pip.price_usd AS italy_price_usd
+        FROM product_italy_prices pip
+        WHERE pip.product_id = vw_product_catalog.id
+          AND pip.valid_until IS NULL
+        ORDER BY pip.valid_from DESC
+        LIMIT 1
+      ) italy_price
+        ON TRUE
 
       ORDER BY
         sort_order ASC,
@@ -2235,6 +2381,7 @@ export const createAdminProduct = async (req, res) => {
     description,
 
     base_price,
+    italy_price_usd,
     tax_rate,
 
     width_mm,
@@ -2512,12 +2659,27 @@ export const createAdminProduct = async (req, res) => {
       ]
     );
 
+    const createdItalyPriceUsd =
+      await syncCurrentItalyPriceUsd({
+        client,
+        productId:
+          result.rows[0].id,
+        priceUsd:
+          italy_price_usd,
+        userId:
+          req.user?.id ||
+          null,
+      });
+
     await client.query("COMMIT");
 
     localCommitted = true;
 
-    const createdProduct =
-      result.rows[0];
+    const createdProduct = {
+      ...result.rows[0],
+      italy_price_usd:
+        createdItalyPriceUsd,
+    };
 
     /* =========================================
        VINCULAR / CREAR EN RELBASE
@@ -2595,6 +2757,14 @@ export const createAdminProduct = async (req, res) => {
               short_description,
               description,
               base_price,
+              (
+                SELECT pip.price_usd
+                FROM product_italy_prices pip
+                WHERE pip.product_id = products.id
+                  AND pip.valid_until IS NULL
+                ORDER BY pip.valid_from DESC
+                LIMIT 1
+              ) AS italy_price_usd,
               tax_rate,
               width_mm,
               height_mm,
@@ -2713,6 +2883,7 @@ export const updateAdminProduct = async (req, res) => {
         FROM products
         WHERE id = $1
         LIMIT 1
+        FOR UPDATE
       `,
       [id]
     );
@@ -3093,10 +3264,30 @@ export const updateAdminProduct = async (req, res) => {
       values
     );
 
+    const updatedItalyPriceUsd =
+      await syncCurrentItalyPriceUsd({
+        client,
+        productId:
+          id,
+        priceUsd:
+          Object.prototype.hasOwnProperty.call(
+            data,
+            "italy_price_usd"
+          )
+            ? data.italy_price_usd
+            : undefined,
+        userId:
+          req.user?.id ||
+          null,
+      });
+
     await client.query("COMMIT");
 
-    let finalProduct =
-      result.rows[0];
+    let finalProduct = {
+      ...result.rows[0],
+      italy_price_usd:
+        updatedItalyPriceUsd,
+    };
 
     let relbaseProvision =
       null;
@@ -3136,6 +3327,14 @@ export const updateAdminProduct = async (req, res) => {
                 short_description,
                 description,
                 base_price,
+                (
+                  SELECT pip.price_usd
+                  FROM product_italy_prices pip
+                  WHERE pip.product_id = products.id
+                    AND pip.valid_until IS NULL
+                  ORDER BY pip.valid_from DESC
+                  LIMIT 1
+                ) AS italy_price_usd,
                 tax_rate,
                 width_mm,
                 height_mm,

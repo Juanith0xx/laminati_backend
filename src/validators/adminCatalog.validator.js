@@ -363,6 +363,12 @@ export const createProductSchema = z.object({
     .optional()
     .nullable(),
 
+  italy_price_usd: z
+    .number()
+    .min(0, "El Precio Italia (USD) no puede ser negativo")
+    .optional()
+    .nullable(),
+
   tax_rate: z
     .number()
     .min(0)
@@ -528,6 +534,12 @@ export const updateProductSchema = z
     base_price: z
       .number()
       .min(0)
+      .optional()
+      .nullable(),
+
+    italy_price_usd: z
+      .number()
+      .min(0, "El Precio Italia (USD) no puede ser negativo")
       .optional()
       .nullable(),
 

@@ -28,6 +28,7 @@ const PUBLIC_ROLE_COMPANY = "USUARIO_EMPRESA";
 const ROLE_LABELS = {
   ADMIN: "Administrador",
   VENDEDOR: "Vendedor",
+  GERENCIA_ITALIA: "Gerencia Italia",
   CLIENTE: "Cliente",
   USUARIO_EMPRESA: "Empresa cliente",
 };

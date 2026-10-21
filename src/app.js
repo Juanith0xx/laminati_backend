@@ -54,6 +54,8 @@ import quotationTrackingRoutes from "./routes/quotationTracking.routes.js";
 
 import publicProjectsRoutes from "./routes/publicProjects.routes.js";
 
+import gerenciaRoutes from "./routes/gerencia.routes.js";
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -231,6 +233,10 @@ app.use("/api/account", accountRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/public/quotation-tracking", quotationTrackingRoutes);
 app.use("/api/public/projects", publicProjectsRoutes);
+
+// Gerencia Italia: endpoints exclusivos de sólo lectura.
+app.use("/api/gerencia", gerenciaRoutes);
+
 app.use("/api/admin/pos", posRoutes);
 
 // Dashboard comercial: GET de sólo lectura, protegido para ADMIN.

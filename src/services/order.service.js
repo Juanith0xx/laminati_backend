@@ -4,6 +4,10 @@ import {
   resolveCustomerProductPrice,
 } from "./customerPricing.service.js";
 
+import {
+  captureOrderItemItalyPriceSnapshot,
+} from "./italyPriceSnapshot.service.js";
+
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -1060,6 +1064,18 @@ export const createWebOrder = async ({
       );
 
       insertedItems.push(itemResult.rows[0]);
+
+      await captureOrderItemItalyPriceSnapshot({
+        client,
+        orderId:
+          order.id,
+        orderItemId:
+          itemResult.rows[0].id,
+        productId:
+          item.product_id,
+        quantity:
+          item.quantity,
+      });
 
       const reservationResult =
         await client.query(

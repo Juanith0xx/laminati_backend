@@ -15,6 +15,10 @@ import {
   resolveCustomerProductPrice,
 } from "./customerPricing.service.js";
 
+import {
+  captureOrderItemItalyPriceSnapshot,
+} from "./italyPriceSnapshot.service.js";
+
 const POS_PROVIDER_CODE = "LOCAL_POS";
 const POS_WAREHOUSE_ID = 956;
 
@@ -2748,6 +2752,18 @@ export const createPosSale = async ({
       insertedItems.push(
         orderItemResult.rows[0]
       );
+
+      await captureOrderItemItalyPriceSnapshot({
+        client,
+        orderId:
+          order.id,
+        orderItemId:
+          orderItemResult.rows[0].id,
+        productId:
+          item.product_id,
+        quantity:
+          item.quantity,
+      });
 
       /*
        * SHOWROOM / POS:
