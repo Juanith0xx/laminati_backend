@@ -16,6 +16,7 @@ import {
   getGerenciaSaleDetail,
   getGerenciaSales,
   getGerenciaStock,
+  getGerenciaSummary,
 } from "../controllers/gerencia.controller.js";
 
 const router =
@@ -33,6 +34,14 @@ router.use(
   authorizeRoles(
     "GERENCIA_ITALIA"
   )
+);
+
+/* =========================================
+   RESUMEN GERENCIA ITALIA
+========================================= */
+router.get(
+  "/resumen",
+  getGerenciaSummary
 );
 
 /* =========================================

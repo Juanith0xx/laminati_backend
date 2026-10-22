@@ -1988,11 +1988,11 @@ export const getAdminProducts = async (req, res) => {
         has_quantity_promotion,
         quantity_tiers,
         active_promotions,
-        COALESCE(
-          jsonb_array_length(
-            active_promotions
-          ),
-          0
+        (
+          SELECT COUNT(*)::integer
+          FROM promotions promotion_count_source
+          WHERE promotion_count_source.product_id =
+            vw_product_catalog.id
         ) AS promotion_count,
 
         stock_quantity,

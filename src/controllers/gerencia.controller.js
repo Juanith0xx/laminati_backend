@@ -636,6 +636,343 @@ const buildSalesFilters = ({
 };
 
 /* =========================================
+   RESUMEN GERENCIA ITALIA
+
+   Consolida únicamente métricas autorizadas:
+   - Stock ABET LAMINATI valorizado en USD
+   - Ventas ABET LAMINATI valorizadas en USD
+   - PROJECT visibles a Italia, sólo PRODUCT ABET
+
+   No selecciona ni devuelve CLP, IVA, descuentos,
+   márgenes, clientes, RUT ni medios de pago.
+========================================= */
+export const getGerenciaSummary = async (
+  req,
+  res
+) => {
+  try {
+    const [
+      stockResult,
+      salesResult,
+      projectQuotesResult,
+      stockByCollectionResult,
+      salesMonthlyResult,
+      projectRankingResult,
+    ] = await Promise.all([
+      pool.query(
+        `
+          ${buildStockBaseCte()}
+
+          SELECT
+            COUNT(*)::int AS total_products,
+            COUNT(*) FILTER (
+              WHERE stock_quantity > 0
+            )::int AS products_with_stock,
+            COUNT(*) FILTER (
+              WHERE italy_price_usd IS NOT NULL
+            )::int AS products_with_italy_price,
+            COUNT(*) FILTER (
+              WHERE italy_price_usd IS NULL
+            )::int AS products_without_italy_price,
+            COALESCE(
+              SUM(stock_quantity),
+              0
+            ) AS total_stock_units,
+            COALESCE(
+              SUM(
+                stock_quantity * italy_price_usd
+              ) FILTER (
+                WHERE italy_price_usd IS NOT NULL
+              ),
+              0
+            ) AS total_stock_value_usd,
+            COALESCE(
+              SUM(stock_quantity) FILTER (
+                WHERE italy_price_usd IS NULL
+              ),
+              0
+            ) AS unpriced_stock_units
+          FROM stock_base
+        `
+      ),
+
+      pool.query(
+        `
+          ${buildSalesBaseCte()}
+
+          SELECT
+            COUNT(DISTINCT order_id)::int AS total_orders,
+            COALESCE(SUM(quantity), 0) AS total_units,
+            COALESCE(
+              SUM(
+                quantity * italy_unit_price_usd
+              ) FILTER (
+                WHERE italy_unit_price_usd IS NOT NULL
+              ),
+              0
+            ) AS total_value_usd,
+            COALESCE(
+              SUM(quantity) FILTER (
+                WHERE italy_unit_price_usd IS NULL
+              ),
+              0
+            ) AS unpriced_units,
+            COUNT(DISTINCT order_id) FILTER (
+              WHERE italy_unit_price_usd IS NULL
+            )::int AS orders_with_unpriced_items
+          FROM sales_base
+        `
+      ),
+
+      pool.query(
+        `
+          ${buildProjectQuotationBaseCte()}
+
+          SELECT
+            COUNT(DISTINCT quotation_id)::int AS total_projects,
+            COALESCE(SUM(quantity), 0) AS total_units,
+            COALESCE(
+              SUM(
+                quantity * italy_unit_price_usd
+              ) FILTER (
+                WHERE italy_unit_price_usd IS NOT NULL
+              ),
+              0
+            ) AS total_value_usd,
+            COALESCE(
+              SUM(quantity) FILTER (
+                WHERE italy_unit_price_usd IS NULL
+              ),
+              0
+            ) AS unpriced_units,
+            COUNT(DISTINCT quotation_id) FILTER (
+              WHERE italy_unit_price_usd IS NULL
+            )::int AS projects_with_unpriced_items
+          FROM project_quote_base
+        `
+      ),
+
+      pool.query(
+        `
+          ${buildStockBaseCte()}
+
+          SELECT
+            COALESCE(
+              NULLIF(BTRIM(collection), ''),
+              'Sin colección'
+            ) AS collection,
+            COALESCE(
+              NULLIF(BTRIM(collection_slug), ''),
+              'sin-coleccion'
+            ) AS collection_slug,
+            COALESCE(
+              SUM(stock_quantity),
+              0
+            ) AS total_units,
+            COALESCE(
+              SUM(
+                stock_quantity * italy_price_usd
+              ) FILTER (
+                WHERE italy_price_usd IS NOT NULL
+              ),
+              0
+            ) AS total_value_usd
+          FROM stock_base
+          WHERE stock_quantity > 0
+          GROUP BY
+            COALESCE(
+              NULLIF(BTRIM(collection), ''),
+              'Sin colección'
+            ),
+            COALESCE(
+              NULLIF(BTRIM(collection_slug), ''),
+              'sin-coleccion'
+            )
+          ORDER BY
+            total_units DESC,
+            collection ASC
+          LIMIT 6
+        `
+      ),
+
+      pool.query(
+        `
+          ${buildSalesBaseCte()},
+
+          months AS (
+            SELECT
+              generate_series(
+                date_trunc(
+                  'month',
+                  NOW() AT TIME ZONE 'America/Santiago'
+                ) - INTERVAL '5 months',
+                date_trunc(
+                  'month',
+                  NOW() AT TIME ZONE 'America/Santiago'
+                ),
+                INTERVAL '1 month'
+              )::date AS month_start
+          ),
+
+          monthly_sales AS (
+            SELECT
+              date_trunc(
+                'month',
+                created_at AT TIME ZONE 'America/Santiago'
+              )::date AS month_start,
+              COALESCE(
+                SUM(quantity),
+                0
+              ) AS total_units,
+              COALESCE(
+                SUM(
+                  quantity * italy_unit_price_usd
+                ) FILTER (
+                  WHERE italy_unit_price_usd IS NOT NULL
+                ),
+                0
+              ) AS total_value_usd
+            FROM sales_base
+            WHERE
+              created_at >= (
+                date_trunc(
+                  'month',
+                  NOW() AT TIME ZONE 'America/Santiago'
+                ) - INTERVAL '5 months'
+              ) AT TIME ZONE 'America/Santiago'
+            GROUP BY 1
+          )
+
+          SELECT
+            TO_CHAR(
+              months.month_start,
+              'YYYY-MM-DD'
+            ) AS month,
+            COALESCE(
+              monthly_sales.total_units,
+              0
+            ) AS total_units,
+            COALESCE(
+              monthly_sales.total_value_usd,
+              0
+            ) AS total_value_usd
+          FROM months
+          LEFT JOIN monthly_sales
+            ON monthly_sales.month_start = months.month_start
+          ORDER BY months.month_start ASC
+        `
+      ),
+
+      pool.query(
+        `
+          ${buildProjectQuotationBaseCte()}
+
+          SELECT
+            quotation_id,
+            quote_number,
+            COALESCE(
+              NULLIF(BTRIM(project_name), ''),
+              quote_number
+            ) AS project_name,
+            COALESCE(
+              SUM(quantity),
+              0
+            ) AS total_units,
+            COALESCE(
+              SUM(
+                quantity * italy_unit_price_usd
+              ) FILTER (
+                WHERE italy_unit_price_usd IS NOT NULL
+              ),
+              0
+            ) AS total_value_usd
+          FROM project_quote_base
+          GROUP BY
+            quotation_id,
+            quote_number,
+            project_name
+          ORDER BY
+            total_value_usd DESC,
+            project_name ASC
+          LIMIT 5
+        `
+      ),
+    ]);
+
+    const stockRow = stockResult.rows[0] || {};
+    const salesRow = salesResult.rows[0] || {};
+    const projectQuotesRow = projectQuotesResult.rows[0] || {};
+
+    return res.status(200).json({
+      success: true,
+      currency: "USD",
+      brand_scope: GERENCIA_TARGET_BRAND,
+
+      stock: {
+        total_products: toNumber(stockRow.total_products),
+        products_with_stock: toNumber(stockRow.products_with_stock),
+        products_with_italy_price: toNumber(stockRow.products_with_italy_price),
+        products_without_italy_price: toNumber(stockRow.products_without_italy_price),
+        total_units: toNumber(stockRow.total_stock_units),
+        total_value_usd: toNumber(stockRow.total_stock_value_usd),
+        unpriced_units: toNumber(stockRow.unpriced_stock_units),
+      },
+
+      sales: {
+        total_orders: toNumber(salesRow.total_orders),
+        total_units: toNumber(salesRow.total_units),
+        total_value_usd: toNumber(salesRow.total_value_usd),
+        unpriced_units: toNumber(salesRow.unpriced_units),
+        orders_with_unpriced_items: toNumber(salesRow.orders_with_unpriced_items),
+      },
+
+      project_quotations: {
+        total_projects: toNumber(projectQuotesRow.total_projects),
+        total_units: toNumber(projectQuotesRow.total_units),
+        total_value_usd: toNumber(projectQuotesRow.total_value_usd),
+        unpriced_units: toNumber(projectQuotesRow.unpriced_units),
+        projects_with_unpriced_items: toNumber(projectQuotesRow.projects_with_unpriced_items),
+      },
+
+      charts: {
+        stock_by_collection: stockByCollectionResult.rows.map((row) => ({
+          collection: row.collection,
+          collection_slug: row.collection_slug,
+          total_units: toNumber(row.total_units),
+          total_value_usd: toNumber(row.total_value_usd),
+        })),
+
+        sales_monthly: salesMonthlyResult.rows.map((row) => ({
+          month: row.month,
+          total_units: toNumber(row.total_units),
+          total_value_usd: toNumber(row.total_value_usd),
+        })),
+
+        project_ranking: projectRankingResult.rows.map((row) => ({
+          quotation_id: row.quotation_id,
+          quote_number: row.quote_number,
+          project_name: row.project_name,
+          total_units: toNumber(row.total_units),
+          total_value_usd: toNumber(row.total_value_usd),
+        })),
+      },
+
+      generated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      "Error obteniendo Resumen Gerencia Italia:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "No fue posible obtener el resumen de Gerencia Italia",
+    });
+  }
+};
+
+/* =========================================
    STOCK DISTRIBUCIÓN CHILE
 
    Sólo GERENCIA_ITALIA puede llegar a este
