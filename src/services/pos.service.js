@@ -1548,6 +1548,109 @@ export const listPosProducts = async ({
 };
 
 /* =========================================
+   CATÁLOGO PARA COTIZACIÓN PROJECT
+   - Catálogo comercial de referencia, NO catálogo POS.
+   - Permite productos activos aunque:
+     * no tengan stock;
+     * no tengan fila en inventory;
+     * base_price sea NULL;
+     * relbase_product_id sea NULL.
+   - No modifica stock.
+   - No llama a Relbase.
+   - No emite DTE.
+========================================= */
+export const listProjectQuotationProducts = async ({
+  query = {},
+} = {}) => {
+  const search =
+    toOptionalString(query?.q) || null;
+
+  const parsedLimit = Number.parseInt(
+    String(query?.limit ?? "20"),
+    10
+  );
+
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 100)
+    : 20;
+
+  const values = [];
+  const conditions = [
+    "p.is_active = TRUE",
+  ];
+
+  let searchOrderSql = "";
+
+  if (search) {
+    const pattern = `%${search}%`;
+    values.push(pattern);
+    const patternParam = `$${values.length}`;
+
+    values.push(search);
+    const exactParam = `$${values.length}`;
+
+    conditions.push(`
+      (
+        p.sku ILIKE ${patternParam}
+        OR p.name ILIKE ${patternParam}
+        OR COALESCE(p.internal_code, '') ILIKE ${patternParam}
+      )
+    `);
+
+    searchOrderSql = `
+      CASE
+        WHEN UPPER(p.sku) = UPPER(${exactParam}) THEN 0
+        WHEN UPPER(COALESCE(p.internal_code, '')) = UPPER(${exactParam}) THEN 1
+        WHEN p.sku ILIKE (${exactParam} || '%') THEN 2
+        WHEN p.name ILIKE (${exactParam} || '%') THEN 3
+        ELSE 4
+      END,
+    `;
+  }
+
+  values.push(limit);
+  const limitParam = `$${values.length}`;
+
+  const result = await pool.query(
+    `
+      SELECT
+        p.id,
+        p.sku,
+        p.internal_code,
+        p.relbase_product_id,
+        p.name,
+        p.base_price,
+        p.tax_rate,
+        p.finish,
+        p.color,
+        p.width_mm,
+        p.height_mm,
+        p.thickness_mm,
+        p.brand_id,
+        p.category_id,
+        p.collection_id,
+        p.is_active,
+        p.allow_sale
+      FROM products p
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY
+        ${searchOrderSql}
+        p.name ASC,
+        p.sku ASC
+      LIMIT ${limitParam}
+    `,
+    values
+  );
+
+  return {
+    query: search,
+    limit,
+    count: result.rows.length,
+    products: result.rows,
+  };
+};
+
+/* =========================================
    ASEGURAR CLIENTE RELBASE PARA FACTURA POS
    - Sólo resuelve/crea el receptor tributario.
    - NO abre transacción de venta POS.

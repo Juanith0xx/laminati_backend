@@ -2,6 +2,7 @@ import {
   createPosSale,
   getPosSaleByOrderId,
   listPosProducts,
+  listProjectQuotationProducts,
   ensurePosInvoiceCustomer,
 } from "../services/pos.service.js";
 
@@ -44,6 +45,35 @@ export const listPosProductsController =
     } catch (error) {
       console.error(
         "Error obteniendo catálogo POS:",
+        {
+          message: error?.message,
+          code: error?.code || null,
+          status: error?.status || null,
+        }
+      );
+
+      return sendServiceError(
+        res,
+        error
+      );
+    }
+  };
+
+export const listProjectQuotationProductsController =
+  async (req, res) => {
+    try {
+      const result =
+        await listProjectQuotationProducts({
+          query: req.query,
+        });
+
+      return res.status(200).json({
+        success: true,
+        ...result,
+      });
+    } catch (error) {
+      console.error(
+        "Error obteniendo catálogo de cotización PROJECT:",
         {
           message: error?.message,
           code: error?.code || null,

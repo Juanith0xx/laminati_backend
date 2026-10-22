@@ -14,6 +14,7 @@ import {
   createPosSaleController,
   getPosSaleController,
   listPosProductsController,
+  listProjectQuotationProductsController,
   ensurePosInvoiceCustomerController,
 } from "../controllers/pos.controller.js";
 
@@ -33,6 +34,11 @@ router.use(
 router.get(
   "/products",
   listPosProductsController
+);
+
+router.get(
+  "/project-products",
+  listProjectQuotationProductsController
 );
 
 router.use(
