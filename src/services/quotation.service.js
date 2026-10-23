@@ -2513,11 +2513,37 @@ export const createProjectQuotation =
               notes
             )
             VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-              $13,$14,$15,$16,'PROJECT',$17,$18,$19,
-              CASE WHEN $19 THEN NOW() ELSE NULL END,
-              CASE WHEN $19 THEN $1 ELSE NULL END,
-              $20,$21,$22,$23,$24
+              $1::uuid,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9,
+              $10,
+              $11,
+              $12,
+              $13,
+              $14,
+              $15,
+              $16::uuid,
+              'PROJECT',
+              $17,
+              $18,
+              $19::boolean,
+              CASE
+                WHEN $19::boolean
+                  THEN NOW()
+                ELSE NULL
+              END,
+              $20::uuid,
+              $21,
+              $22,
+              $23,
+              $24,
+              $25
             )
             RETURNING *
           `,
@@ -2556,6 +2582,9 @@ export const createProjectQuotation =
             projectName,
             projectReference,
             visibleToItaly,
+            visibleToItaly
+              ? userId
+              : null,
             netTotal,
             taxTotal,
             total,
@@ -3501,8 +3530,10 @@ export const emailQuotation = async ({ quotationId }) => {
     quotation,
     items,
     project_lines,
+    buffer,
+    filename,
   } =
-    await getQuotationById({
+    await getQuotationPdf({
       quotationId,
     });
 
@@ -3533,20 +3564,16 @@ export const emailQuotation = async ({ quotationId }) => {
       openPixelUrl: tracking.open_pixel_url,
     });
 
-    /*
-     * IMPORTANTE:
-     * No adjuntamos el PDF.
-     *
-     * El cliente debe entrar por quotation_url para que
-     * Laminatiword pueda registrar el evento VIEW.
-     *
-     * El PDF/documento seguirá disponible desde la
-     * experiencia pública de la cotización.
-     */
     info = await sendTransactionalEmail({
       ...emailTemplate,
       messageId: `<quotation-${tracking.email_message_id}@laminatiword.local>`,
-      attachments: [],
+      attachments: [
+        {
+          filename,
+          content: buffer,
+          contentType: "application/pdf",
+        },
+      ],
     });
   } catch (error) {
     try {
