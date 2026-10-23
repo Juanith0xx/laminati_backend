@@ -165,6 +165,14 @@ const buildProjectQuotationBaseCte = () => `
       qpl.product_id,
       qpl.description,
       qpl.code,
+      qpl.brand
+        AS line_brand,
+      qpl.collection
+        AS line_collection,
+      qpl.italy_price_usd
+        AS line_italy_price_usd,
+      qpl.italy_price_source
+        AS line_italy_price_source,
       qpl.finish
         AS line_finish,
       qpl.thickness_mm,
@@ -175,15 +183,43 @@ const buildProjectQuotationBaseCte = () => `
       qpl.height_cm,
       qpl.sort_order,
 
-      v.sku,
-      v.name
-        AS product_name,
-      v.collection,
-      v.collection_slug,
-      v.finish
-        AS product_finish,
+      COALESCE(
+        v.sku,
+        qpl.code
+      ) AS sku,
 
       COALESCE(
+        v.name,
+        qpl.description
+      ) AS product_name,
+
+      COALESCE(
+        NULLIF(
+          BTRIM(
+            qpl.collection
+          ),
+          ''
+        ),
+        v.collection
+      ) AS collection,
+
+      COALESCE(
+        NULLIF(
+          BTRIM(
+            qpl.collection
+          ),
+          ''
+        ),
+        v.collection_slug
+      ) AS collection_slug,
+
+      COALESCE(
+        qpl.finish,
+        v.finish
+      ) AS product_finish,
+
+      COALESCE(
+        qpl.italy_price_usd,
         snapshot.price_usd,
         historical_price.price_usd,
         CASE
@@ -198,6 +234,16 @@ const buildProjectQuotationBaseCte = () => `
       ) AS italy_unit_price_usd,
 
       CASE
+        WHEN qpl.italy_price_usd IS NOT NULL
+          THEN COALESCE(
+            qpl.italy_price_source,
+            CASE
+              WHEN qpl.product_id IS NULL
+                THEN 'MANUAL'
+              ELSE 'LINE_SNAPSHOT'
+            END
+          )
+
         WHEN snapshot.price_usd IS NOT NULL
           THEN 'SNAPSHOT'
 
@@ -219,9 +265,8 @@ const buildProjectQuotationBaseCte = () => `
     INNER JOIN quotation_project_lines qpl
       ON qpl.quotation_id = q.id
       AND qpl.line_type = 'PRODUCT'
-      AND qpl.product_id IS NOT NULL
 
-    INNER JOIN vw_product_catalog v
+    LEFT JOIN vw_product_catalog v
       ON v.id = qpl.product_id
 
     CROSS JOIN italy_price_rollout rollout
@@ -268,14 +313,26 @@ const buildProjectQuotationBaseCte = () => `
 
       AND q.visible_to_italy = TRUE
 
-      AND UPPER(
-        BTRIM(
-          COALESCE(
-            v.brand,
-            ''
+      AND REGEXP_REPLACE(
+        UPPER(
+          BTRIM(
+            COALESCE(
+              NULLIF(
+                qpl.brand,
+                ''
+              ),
+              v.brand,
+              ''
+            )
           )
-        )
-      ) = '${GERENCIA_TARGET_BRAND}'
+        ),
+        '\\s+',
+        ' ',
+        'g'
+      ) IN (
+        '${GERENCIA_TARGET_BRAND}',
+        'ABET'
+      )
   )
 `;
 

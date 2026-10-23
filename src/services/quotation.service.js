@@ -14,6 +14,9 @@ import {
   markQuotationEmailFailed,
   markQuotationEmailSent,
 } from "./quotationTracking.service.js";
+import {
+  resolveRelbaseCustomerForTaxDocument,
+} from "./relbaseCustomer.service.js";
 
 const POS_WAREHOUSE_ID = 956;
 
@@ -41,6 +44,17 @@ const CONVERTIBLE_STATUSES = new Set([
 const EDITABLE_STATUSES = new Set([
   "DRAFT",
   "SENT",
+]);
+
+/*
+ * Las cotizaciones PROJECT pueden recuperarse aun cuando su vigencia
+ * haya expirado. Al guardarlas nuevamente se renueva valid_until y
+ * vuelven a DRAFT, conservando id y quote_number.
+ */
+const PROJECT_EDITABLE_STATUSES = new Set([
+  "DRAFT",
+  "SENT",
+  "EXPIRED",
 ]);
 
 const createServiceError = (
@@ -308,40 +322,91 @@ const normalizeCustomerSnapshot = (body = {}) => {
   const customer = body.customer || {};
   const billing = body.billing || {};
 
+  const requestedCustomerType =
+    cleanText(
+      billing.customer_type ||
+      customer.customer_type
+    ).toUpperCase();
+
+  const hasCompanyData =
+    Boolean(
+      cleanText(
+        billing.legal_name
+      ) ||
+      cleanText(
+        billing.business_activity
+      ) ||
+      cleanText(
+        billing.trade_name
+      )
+    );
+
+  const customerType =
+    ["PERSON", "COMPANY"].includes(
+      requestedCustomerType
+    )
+      ? requestedCustomerType
+      : (
+          documentType === "FACTURA" ||
+          hasCompanyData
+        )
+        ? "COMPANY"
+        : "PERSON";
+
+  if (
+    documentType === "FACTURA" &&
+    customerType !== "COMPANY"
+  ) {
+    throw createServiceError(
+      "Las cotizaciones con Factura requieren cliente tipo empresa",
+      400,
+      "QUOTATION_INVOICE_CUSTOMER_TYPE_INVALID"
+    );
+  }
+
   const rut = normalizeRut(
     documentType === "FACTURA"
       ? billing.rut || customer.rut
       : customer.rut || billing.rut
   );
 
-  const customerType =
-    documentType === "FACTURA" ? "COMPANY" : "PERSON";
+  const isCompany =
+    customerType === "COMPANY";
 
   const customerName =
-    documentType === "FACTURA"
-      ? cleanText(billing.legal_name)
-      : cleanText(customer.name);
+    isCompany
+      ? cleanText(
+          billing.legal_name ||
+          customer.name
+        )
+      : cleanText(
+          customer.name ||
+          billing.legal_name
+        );
 
   const email =
-    documentType === "FACTURA"
-      ? cleanText(billing.billing_email || customer.email)
-      : cleanText(customer.email || billing.billing_email);
+    cleanText(
+      billing.billing_email ||
+      customer.email
+    );
 
   const phone =
-    documentType === "FACTURA"
-      ? cleanText(billing.phone || customer.phone)
-      : cleanText(customer.phone || billing.phone);
+    cleanText(
+      billing.phone ||
+      customer.phone
+    );
 
   const addressLine =
-    documentType === "FACTURA"
-      ? cleanText(billing.address_line)
-      : cleanText(customer.address || billing.address_line);
+    cleanText(
+      billing.address_line ||
+      customer.address
+    );
 
   if (!customerName) {
     throw createServiceError(
-      documentType === "FACTURA"
-        ? "La razón social es obligatoria para cotizar con Factura"
-        : "El nombre del cliente es obligatorio para cotizar con Boleta",
+      isCompany
+        ? "La razón social es obligatoria"
+        : "El nombre del cliente es obligatorio",
       400,
       "QUOTATION_CUSTOMER_NAME_REQUIRED"
     );
@@ -371,7 +436,7 @@ const normalizeCustomerSnapshot = (body = {}) => {
     );
   }
 
-  if (documentType === "FACTURA") {
+  if (isCompany) {
     const required = [
       [billing.business_activity, "giro"],
       [billing.commune, "comuna"],
@@ -381,9 +446,9 @@ const normalizeCustomerSnapshot = (body = {}) => {
     for (const [value, label] of required) {
       if (!cleanText(value)) {
         throw createServiceError(
-          `Falta ${label} para cotizar con Factura`,
+          `Falta ${label} para sincronizar el cliente empresa con Relbase`,
           400,
-          "QUOTATION_INVOICE_DATA_INCOMPLETE"
+          "QUOTATION_COMPANY_DATA_INCOMPLETE"
         );
       }
     }
@@ -395,35 +460,134 @@ const normalizeCustomerSnapshot = (body = {}) => {
     rut,
     customer_name: customerName,
     legal_name:
-      documentType === "FACTURA"
-        ? cleanText(billing.legal_name)
+      isCompany
+        ? cleanText(
+            billing.legal_name ||
+            customerName
+          )
         : null,
     trade_name:
-      documentType === "FACTURA"
-        ? optionalText(billing.trade_name)
+      isCompany
+        ? optionalText(
+            billing.trade_name
+          )
         : null,
     business_activity:
-      documentType === "FACTURA"
-        ? cleanText(billing.business_activity)
+      isCompany
+        ? cleanText(
+            billing.business_activity
+          )
         : null,
     email,
     phone,
     address_line: addressLine,
     commune:
-      documentType === "FACTURA"
-        ? cleanText(billing.commune)
-        : optionalText(billing.commune),
+      optionalText(
+        billing.commune
+      ),
     city:
-      documentType === "FACTURA"
-        ? cleanText(billing.city)
-        : optionalText(billing.city),
-    region: optionalText(billing.region),
-    country: cleanText(billing.country || "Chile") || "Chile",
-    relbase_customer_id: optionalText(
-      billing.relbase_customer_id
-    ),
+      optionalText(
+        billing.city
+      ),
+    region:
+      optionalText(
+        billing.region
+      ),
+    country:
+      cleanText(
+        billing.country ||
+        "Chile"
+      ) ||
+      "Chile",
+    relbase_customer_id:
+      optionalText(
+        billing.relbase_customer_id
+      ),
   };
 };
+
+const synchronizeProjectCustomerWithRelbase =
+  async ({
+    customer,
+    projectName,
+  }) => {
+    const result =
+      await resolveRelbaseCustomerForTaxDocument({
+        document_type:
+          customer.intended_document_type,
+        customer_type:
+          customer.customer_type,
+        rut:
+          customer.rut,
+        legal_name:
+          customer.legal_name ||
+          customer.customer_name,
+        trade_name:
+          customer.trade_name ||
+          customer.customer_name,
+        business_activity:
+          customer.business_activity ||
+          (
+            customer.customer_type === "PERSON"
+              ? "Particular"
+              : ""
+          ),
+        email:
+          customer.email,
+        phone:
+          customer.phone,
+        address:
+          customer.address_line,
+        city:
+          customer.city || "",
+        commune:
+          customer.commune || "",
+        order_number:
+          projectName
+            ? `Proyecto ${projectName}`
+            : "Cotización proyecto",
+        allow_generic_boleta: false,
+      });
+
+    if (
+      !result?.resolved ||
+      !result?.customer_id
+    ) {
+      throw createServiceError(
+        "No fue posible vincular el cliente de proyecto con Relbase",
+        409,
+        "QUOTATION_PROJECT_RELBASE_CUSTOMER_REQUIRED"
+      );
+    }
+
+    return {
+      customer: {
+        ...customer,
+        relbase_customer_id:
+          String(
+            result.customer_id
+          ),
+      },
+      sync: {
+        action:
+          result.created
+            ? "CREATED"
+            : result.updated
+              ? "UPDATED"
+              : "FOUND",
+        created:
+          result.created === true,
+        updated:
+          result.updated === true,
+        changed_fields:
+          result.changed_fields || [],
+        relbase_customer_id:
+          String(
+            result.customer_id
+          ),
+      },
+    };
+  };
 
 const resolveValidUntil = (rawDays) => {
   const parsed = Number.parseInt(
@@ -512,6 +676,10 @@ const getQuotationProjectLines =
             product_id,
             description,
             code,
+            brand,
+            collection,
+            italy_price_usd,
+            italy_price_source,
             finish,
             thickness_mm,
             quantity,
@@ -673,6 +841,26 @@ const normalizeProjectLines =
               line?.code
             ),
 
+          brand:
+            optionalText(
+              line?.brand
+            ),
+
+          collection:
+            optionalText(
+              line?.collection
+            ),
+
+          italy_price_usd:
+            optionalNumber(
+              line?.italy_price_usd,
+              {
+                label:
+                  `El Precio Italia USD de línea ${index + 1}`,
+                min: 0,
+              }
+            ),
+
           finish:
             optionalText(
               line?.finish
@@ -815,18 +1003,33 @@ const resolveProjectLines =
           await client.query(
             `
               SELECT
-                id,
-                sku,
-                internal_code,
-                name,
-                base_price,
-                tax_rate,
-                width_mm,
-                height_mm,
-                thickness_mm,
-                finish
-              FROM products
-              WHERE id = $1
+                v.id,
+                v.sku,
+                v.internal_code,
+                v.name,
+                v.base_price,
+                v.tax_rate,
+                v.width_mm,
+                v.height_mm,
+                v.thickness_mm,
+                v.finish,
+                v.brand,
+                v.collection,
+                italy_price.price_usd
+                  AS active_italy_price_usd
+              FROM vw_product_catalog v
+              LEFT JOIN LATERAL (
+                SELECT
+                  pip.price_usd
+                FROM product_italy_prices pip
+                WHERE pip.product_id = v.id
+                  AND pip.valid_until IS NULL
+                ORDER BY
+                  pip.valid_from DESC
+                LIMIT 1
+              ) italy_price
+                ON TRUE
+              WHERE v.id = $1
               LIMIT 1
             `,
             [
@@ -1044,6 +1247,125 @@ const resolveProjectLines =
           taxRate,
         });
 
+      const isProductLine =
+        requested
+          .line_type ===
+        "PRODUCT";
+
+      const brand =
+        isProductLine
+          ? (
+              requested
+                .brand ||
+              optionalText(
+                product
+                  ?.brand
+              )
+            )
+          : null;
+
+      const collection =
+        isProductLine
+          ? (
+              requested
+                .collection ||
+              optionalText(
+                product
+                  ?.collection
+              )
+            )
+          : null;
+
+      if (
+        isProductLine &&
+        !brand
+      ) {
+        throw createServiceError(
+          `La marca del producto en la línea ${index + 1} es obligatoria`,
+          400,
+          "QUOTATION_PROJECT_PRODUCT_BRAND_REQUIRED"
+        );
+      }
+
+      /*
+       * Canoniza variantes habituales de ABET para que una
+       * entrada manual como "Abet" o "Abet Laminati" no quede
+       * fuera de Gerencia Italia por diferencias de escritura.
+       */
+      const normalizedBrand =
+        isProductLine
+          ? (
+              ["ABET", "ABET LAMINATI", "ABETLAMINATI"]
+                .includes(
+                  cleanText(
+                    brand
+                  )
+                    .toUpperCase()
+                    .replace(
+                      /\s+/g,
+                      " "
+                    )
+                    .replace(
+                      /\s/g,
+                      ""
+                    ) ===
+                    "ABETLAMINATI"
+                    ? "ABETLAMINATI"
+                    : cleanText(
+                        brand
+                      )
+                        .toUpperCase()
+                        .replace(
+                          /\s+/g,
+                          " "
+                        )
+                )
+                ? "ABET LAMINATI"
+                : cleanText(
+                    brand
+                  )
+            )
+          : null;
+
+      let italyPriceUsd =
+        null;
+
+      let italyPriceSource =
+        null;
+
+      if (
+        isProductLine &&
+        requested
+          .italy_price_usd !==
+          null
+      ) {
+        italyPriceUsd =
+          Number(
+            requested
+              .italy_price_usd
+          );
+
+        italyPriceSource =
+          "MANUAL";
+      } else if (
+        isProductLine &&
+        product
+          ?.active_italy_price_usd !==
+          null &&
+        product
+          ?.active_italy_price_usd !==
+          undefined
+      ) {
+        italyPriceUsd =
+          Number(
+            product
+              .active_italy_price_usd
+          );
+
+        italyPriceSource =
+          "CATALOG";
+      }
+
       resolved.push({
         line_type:
           requested
@@ -1066,6 +1388,17 @@ const resolveProjectLines =
             product
               ?.sku
           ),
+
+        brand:
+          normalizedBrand,
+
+        collection,
+
+        italy_price_usd:
+          italyPriceUsd,
+
+        italy_price_source:
+          italyPriceSource,
 
         finish:
           requested
@@ -1167,6 +1500,10 @@ const insertProjectLines =
               product_id,
               description,
               code,
+              brand,
+              collection,
+              italy_price_usd,
+              italy_price_source,
               finish,
               thickness_mm,
               quantity,
@@ -1185,7 +1522,8 @@ const insertProjectLines =
             )
             VALUES (
               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-              $11,$12,$13,$14,$15,$16,$17,$18,$19,$20
+              $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+              $21,$22,$23,$24
             )
             RETURNING *
           `,
@@ -1195,6 +1533,10 @@ const insertProjectLines =
             line.product_id,
             line.description,
             line.code,
+            line.brand,
+            line.collection,
+            line.italy_price_usd,
+            line.italy_price_source,
             line.finish,
             line.thickness_mm,
             line.quantity,
@@ -2380,7 +2722,7 @@ export const createProjectQuotation =
     const payload =
       body || {};
 
-    const customer =
+    let customer =
       normalizeCustomerSnapshot(
         payload
       );
@@ -2428,6 +2770,15 @@ export const createProjectQuotation =
       normalizeProjectLines(
         payload.lines
       );
+
+    const customerSynchronization =
+      await synchronizeProjectCustomerWithRelbase({
+        customer,
+        projectName,
+      });
+
+    customer =
+      customerSynchronization.customer;
 
     const client =
       await pool.connect();
@@ -2528,7 +2879,7 @@ export const createProjectQuotation =
               $13,
               $14,
               $15,
-              $16::uuid,
+              $16::text,
               'PROJECT',
               $17,
               $18,
@@ -2615,6 +2966,8 @@ export const createProjectQuotation =
         items: [],
         project_lines:
           projectLines,
+        relbase_customer_sync:
+          customerSynchronization.sync,
       };
     } catch (error) {
       try {
@@ -2646,7 +2999,7 @@ export const updateProjectQuotation =
     const payload =
       body || {};
 
-    const customer =
+    let customer =
       normalizeCustomerSnapshot(
         payload
       );
@@ -2673,6 +3026,10 @@ export const updateProjectQuotation =
           .project_reference
       );
 
+    const requestedVisibleToItaly =
+      payload
+        .visible_to_italy;
+
     const notes =
       optionalText(
         payload
@@ -2683,6 +3040,15 @@ export const updateProjectQuotation =
       normalizeProjectLines(
         payload.lines
       );
+
+    const customerSynchronization =
+      await synchronizeProjectCustomerWithRelbase({
+        customer,
+        projectName,
+      });
+
+    customer =
+      customerSynchronization.customer;
 
     const requestedValidUntil =
       payload
@@ -2759,9 +3125,11 @@ export const updateProjectQuotation =
       }
 
       if (
-        !EDITABLE_STATUSES.has(
-          currentQuotation
-            .status
+        !PROJECT_EDITABLE_STATUSES.has(
+          cleanText(
+            currentQuotation
+              .status
+          ).toUpperCase()
         )
       ) {
         throw createServiceError(
@@ -2770,6 +3138,16 @@ export const updateProjectQuotation =
           "QUOTATION_NOT_EDITABLE"
         );
       }
+
+      const visibleToItaly =
+        requestedVisibleToItaly ===
+        undefined
+          ? Boolean(
+              currentQuotation
+                .visible_to_italy
+            )
+          : requestedVisibleToItaly ===
+            true;
 
       const dateResult =
         await client.query(
@@ -2802,19 +3180,20 @@ export const updateProjectQuotation =
             .max_valid_until
         );
 
-      if (
+      const currentValidUntil =
         dateOnly(
           currentQuotation
             .valid_until
-        ) <
-        today
-      ) {
-        throw createServiceError(
-          "La cotización está vencida y ya no puede editarse",
-          409,
-          "QUOTATION_EXPIRED"
         );
-      }
+
+      const recoveringExpiredQuotation =
+        cleanText(
+          currentQuotation
+            .status
+        ).toUpperCase() ===
+          "EXPIRED" ||
+        currentValidUntil <
+          today;
 
       let validUntil =
         requestedValidUntil;
@@ -2868,12 +3247,31 @@ export const updateProjectQuotation =
                 .rows[0]
                 .valid_until
             );
-        } else {
+        } else if (
+          recoveringExpiredQuotation
+        ) {
+          const recoveryValidResult =
+            await client.query(
+              `
+                SELECT (
+                  (NOW() AT TIME ZONE 'America/Santiago')::date
+                  + $1::int
+                )::text AS valid_until
+              `,
+              [
+                QUOTATION_DEFAULT_VALID_DAYS,
+              ]
+            );
+
           validUntil =
-            dateOnly(
-              currentQuotation
+            String(
+              recoveryValidResult
+                .rows[0]
                 .valid_until
             );
+        } else {
+          validUntil =
+            currentValidUntil;
         }
       }
 
@@ -2988,14 +3386,33 @@ export const updateProjectQuotation =
               city = $13,
               region = $14,
               country = $15,
-              relbase_customer_id = $16,
+              relbase_customer_id = $16::text,
               project_name = $17,
               project_reference = $18,
-              net_total = $19,
-              tax_total = $20,
-              total = $21,
-              valid_until = $22,
-              notes = $23,
+              visible_to_italy = $19::boolean,
+              italy_visibility_set_at =
+                CASE
+                  WHEN $19::boolean
+                    THEN COALESCE(
+                      italy_visibility_set_at,
+                      NOW()
+                    )
+                  ELSE NULL
+                END,
+              italy_visibility_set_by =
+                CASE
+                  WHEN $19::boolean
+                    THEN COALESCE(
+                      italy_visibility_set_by,
+                      created_by
+                    )
+                  ELSE NULL
+                END,
+              net_total = $20,
+              tax_total = $21,
+              total = $22,
+              valid_until = $23,
+              notes = $24,
               status = 'DRAFT',
               sent_at = NULL
             WHERE id = $1
@@ -3034,6 +3451,7 @@ export const updateProjectQuotation =
             relbaseCustomerId,
             projectName,
             projectReference,
+            visibleToItaly,
             netTotal,
             taxTotal,
             total,
@@ -3081,6 +3499,9 @@ export const updateProjectQuotation =
         previous_status:
           currentQuotation
             .status,
+
+        relbase_customer_sync:
+          customerSynchronization.sync,
       };
     } catch (error) {
       try {
@@ -3530,10 +3951,8 @@ export const emailQuotation = async ({ quotationId }) => {
     quotation,
     items,
     project_lines,
-    buffer,
-    filename,
   } =
-    await getQuotationPdf({
+    await getQuotationById({
       quotationId,
     });
 
@@ -3567,13 +3986,11 @@ export const emailQuotation = async ({ quotationId }) => {
     info = await sendTransactionalEmail({
       ...emailTemplate,
       messageId: `<quotation-${tracking.email_message_id}@laminatiword.local>`,
-      attachments: [
-        {
-          filename,
-          content: buffer,
-          contentType: "application/pdf",
-        },
-      ],
+      /*
+       * No adjuntamos el PDF.
+       * El cliente debe entrar por la URL trackeada para registrar VIEW.
+       */
+      attachments: [],
     });
   } catch (error) {
     try {

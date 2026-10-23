@@ -56,6 +56,8 @@ import publicProjectsRoutes from "./routes/publicProjects.routes.js";
 
 import gerenciaRoutes from "./routes/gerencia.routes.js";
 
+import projectBoardRoutes from "./routes/projectBoard.routes.js";
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -236,6 +238,12 @@ app.use("/api/public/projects", publicProjectsRoutes);
 
 // Gerencia Italia: endpoints exclusivos de sólo lectura.
 app.use("/api/gerencia", gerenciaRoutes);
+
+// Board comercial de cotizaciones PROJECT.
+app.use(
+  "/api/admin/project-board",
+  projectBoardRoutes
+);
 
 app.use("/api/admin/pos", posRoutes);
 

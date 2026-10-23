@@ -2834,6 +2834,10 @@ export const ensureRelbaseCustomerController =
 
         customer_data = null,
 
+        sync_existing = false,
+
+        customer_type = null,
+
       } = req.body || {};
 
       const result =
@@ -2847,6 +2851,11 @@ export const ensureRelbaseCustomerController =
           create_if_missing,
 
           customer_data,
+
+          sync_existing:
+            sync_existing === true,
+
+          customer_type,
 
         });
 
@@ -2868,11 +2877,15 @@ export const ensureRelbaseCustomerController =
 
             ? "Cliente creado correctamente en Relbase"
 
-            : result.found
+            : result.updated
 
-              ? "Cliente encontrado en Relbase"
+              ? "Cliente actualizado correctamente en Relbase"
 
-              : "Cliente no encontrado en Relbase",
+              : result.found
+
+                ? "Cliente encontrado en Relbase"
+
+                : "Cliente no encontrado en Relbase",
 
         data: result,
 
