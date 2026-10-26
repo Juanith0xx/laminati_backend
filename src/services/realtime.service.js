@@ -2,7 +2,10 @@ import { Server } from "socket.io";
 
 import pool from "../config/database.js";
 import { corsOptions } from "../config/cors.js";
-import { verifyToken } from "../utils/jwt.js";
+import {
+  verifyToken,
+  verifyRealtimeToken,
+} from "../utils/jwt.js";
 import {
   getAuthTokenFromSocket,
 } from "../utils/authCookie.js";
@@ -58,7 +61,23 @@ const getRealtimeUserFromToken = async (
     throw error;
   }
 
-  const decoded = verifyToken(token);
+  let decoded;
+
+  try {
+    /*
+     * Producción Vercel -> Railway utiliza un token
+     * efímero exclusivo para realtime.
+     */
+    decoded = verifyRealtimeToken(
+      token
+    );
+  } catch (realtimeError) {
+    /*
+     * Compatibilidad con desarrollo local y sesiones
+     * antiguas que todavía entreguen el JWT principal.
+     */
+    decoded = verifyToken(token);
+  }
 
   const result = await pool.query(
     `

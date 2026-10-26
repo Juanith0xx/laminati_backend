@@ -86,3 +86,60 @@ export const verifyToken = (token) => {
     }
   );
 };
+
+/* =========================================
+   TOKEN EFÍMERO PARA SOCKET.IO
+
+   - No reemplaza el JWT de sesión.
+   - No se guarda en localStorage/sessionStorage.
+   - Sólo autoriza el handshake realtime.
+========================================= */
+
+const REALTIME_TOKEN_AUDIENCE =
+  "laminatiword-realtime";
+
+const REALTIME_TOKEN_PURPOSE =
+  "realtime";
+
+export const generateRealtimeToken = (user) => {
+  return jwt.sign(
+    {
+      sub: user.id,
+      role: user.role,
+      purpose: REALTIME_TOKEN_PURPOSE,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn:
+        process.env.JWT_REALTIME_EXPIRES_IN ||
+        "2m",
+      issuer: "laminatiword-api",
+      audience: REALTIME_TOKEN_AUDIENCE,
+    }
+  );
+};
+
+export const verifyRealtimeToken = (token) => {
+  const decoded = jwt.verify(
+    token,
+    process.env.JWT_SECRET,
+    {
+      issuer: "laminatiword-api",
+      audience: REALTIME_TOKEN_AUDIENCE,
+    }
+  );
+
+  if (
+    String(decoded?.purpose || "") !==
+    REALTIME_TOKEN_PURPOSE
+  ) {
+    const error = new Error(
+      "Token realtime inválido"
+    );
+    error.code =
+      "REALTIME_TOKEN_PURPOSE_INVALID";
+    throw error;
+  }
+
+  return decoded;
+};

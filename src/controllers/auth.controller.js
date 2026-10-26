@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import pool from "../config/database.js";
 import {
   generateToken,
+  generateRealtimeToken,
   verifyToken,
+  verifyRealtimeToken,
   getSessionDurationLabelForRole,
 } from "../utils/jwt.js";
 import {
@@ -687,6 +689,61 @@ export const login = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "No fue posible iniciar sesión",
+    });
+  }
+};
+
+/* =========================================
+   TOKEN EFÍMERO REALTIME
+
+   La sesión principal continúa viviendo
+   exclusivamente en la cookie HttpOnly.
+   Este token sólo se entrega a un usuario
+   previamente autenticado y se usa en memoria
+   durante el handshake con Socket.IO/Railway.
+========================================= */
+export const createRealtimeToken = async (req, res) => {
+  try {
+    const realtimeToken =
+      generateRealtimeToken({
+        id: req.user.id,
+        role: req.user.role,
+      });
+
+    const decoded =
+      verifyRealtimeToken(
+        realtimeToken
+      );
+
+    res.set(
+      "Cache-Control",
+      "no-store"
+    );
+
+    return res.status(200).json({
+      success: true,
+      realtime_token:
+        realtimeToken,
+      expires_at:
+        decoded?.exp
+          ? new Date(
+              Number(decoded.exp) *
+                1000
+            ).toISOString()
+          : null,
+    });
+  } catch (error) {
+    console.error(
+      "Error generando token realtime:",
+      error?.message || error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible iniciar la conexión realtime",
+      code:
+        "REALTIME_TOKEN_ERROR",
     });
   }
 };

@@ -13,6 +13,7 @@ import {
   changePassword,
   session,
   extendSession,
+  createRealtimeToken,
 } from "../controllers/auth.controller.js";
 
 import {
@@ -115,6 +116,13 @@ router.post(
   passwordChangeLimiter,
   authenticate,
   changePassword
+);
+
+
+router.post(
+  "/realtime-token",
+  authenticate,
+  createRealtimeToken
 );
 
 router.get(
