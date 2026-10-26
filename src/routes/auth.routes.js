@@ -13,7 +13,6 @@ import {
   changePassword,
   session,
   extendSession,
-  createRealtimeToken,
 } from "../controllers/auth.controller.js";
 
 import {
@@ -23,6 +22,10 @@ import {
 import {
   avatarUploadMiddleware,
 } from "../middlewares/upload.middleware.js";
+
+import {
+  recordAuthEventSafely,
+} from "../services/authAudit.service.js";
 
 const router = Router();
 
@@ -35,6 +38,19 @@ const loginLimiter = rateLimit({
     success: false,
     message:
       "Demasiados intentos de inicio de sesión. Inténtalo nuevamente más tarde.",
+  },
+  handler: async (req, res, _next, options) => {
+    await recordAuthEventSafely({
+      email: req.body?.email || null,
+      eventType: "LOGIN_FAILED",
+      success: false,
+      req,
+      failureReason: "RATE_LIMITED",
+    });
+
+    return res
+      .status(options.statusCode || 429)
+      .json(options.message);
   },
 });
 
@@ -116,13 +132,6 @@ router.post(
   passwordChangeLimiter,
   authenticate,
   changePassword
-);
-
-
-router.post(
-  "/realtime-token",
-  authenticate,
-  createRealtimeToken
 );
 
 router.get(

@@ -192,6 +192,12 @@ import {
   deleteAdminUser,
 } from "../controllers/adminUsers.controller.js";
 
+
+import {
+  listAdminAuthHistory,
+  listAdminUserAuthHistory,
+} from "../controllers/adminAuthHistory.controller.js";
+
 import {
   listAdminPriceLists,
   getAdminPriceList,
@@ -319,6 +325,20 @@ router.patch(
 router.delete(
   "/users/:userId",
   deleteAdminUser
+);
+
+
+/* =========================================
+   HISTORIAL DE ACCESOS
+========================================= */
+router.get(
+  "/auth-history",
+  listAdminAuthHistory
+);
+
+router.get(
+  "/users/:userId/auth-history",
+  listAdminUserAuthHistory
 );
 
 /* =========================================

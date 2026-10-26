@@ -4,14 +4,13 @@ import { randomUUID } from "node:crypto";
 import pool from "../config/database.js";
 import {
   generateToken,
-  generateRealtimeToken,
   verifyToken,
-  verifyRealtimeToken,
   getSessionDurationLabelForRole,
 } from "../utils/jwt.js";
 import {
   clearAuthCookie,
   setAuthCookie,
+  getAuthTokenFromRequest,
 } from "../utils/authCookie.js";
 import {
   registerSchema,
@@ -23,6 +22,9 @@ import {
   deleteUserAvatar,
   getUserAvatarSignedUrl,
 } from "../services/productImageStorage.service.js";
+import {
+  recordAuthEventSafely,
+} from "../services/authAudit.service.js";
 
 const PUBLIC_ROLE_CLIENT = "CLIENTE";
 const PUBLIC_ROLE_COMPANY = "USUARIO_EMPRESA";
@@ -584,6 +586,14 @@ export const login = async (req, res) => {
   const validation = loginSchema.safeParse(req.body);
 
   if (!validation.success) {
+    await recordAuthEventSafely({
+      email: req.body?.email || null,
+      eventType: "LOGIN_FAILED",
+      success: false,
+      req,
+      failureReason: "INVALID_LOGIN_PAYLOAD",
+    });
+
     return res.status(400).json({
       success: false,
       message: "Credenciales inválidas",
@@ -618,6 +628,14 @@ export const login = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
+      await recordAuthEventSafely({
+        email,
+        eventType: "LOGIN_FAILED",
+        success: false,
+        req,
+        failureReason: "USER_NOT_FOUND",
+      });
+
       return res.status(401).json({
         success: false,
         message: "Correo electrónico o contraseña incorrectos",
@@ -632,6 +650,15 @@ export const login = async (req, res) => {
     );
 
     if (!passwordValid) {
+      await recordAuthEventSafely({
+        userId: user.id,
+        email: user.email,
+        eventType: "LOGIN_FAILED",
+        success: false,
+        req,
+        failureReason: "INVALID_PASSWORD",
+      });
+
       return res.status(401).json({
         success: false,
         message: "Correo electrónico o contraseña incorrectos",
@@ -639,6 +666,15 @@ export const login = async (req, res) => {
     }
 
     if (!user.is_active) {
+      await recordAuthEventSafely({
+        userId: user.id,
+        email: user.email,
+        eventType: "LOGIN_FAILED",
+        success: false,
+        req,
+        failureReason: "ACCOUNT_DISABLED",
+      });
+
       return res.status(403).json({
         success: false,
         message: "La cuenta se encuentra deshabilitada",
@@ -666,6 +702,14 @@ export const login = async (req, res) => {
 
     setAuthCookie(res, token);
 
+    await recordAuthEventSafely({
+      userId: user.id,
+      email: user.email,
+      eventType: "LOGIN_SUCCESS",
+      success: true,
+      req,
+    });
+
     delete user.password_hash;
 
     const publicUser =
@@ -686,6 +730,14 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error("Error iniciando sesión:", error);
 
+    await recordAuthEventSafely({
+      email,
+      eventType: "LOGIN_FAILED",
+      success: false,
+      req,
+      failureReason: "LOGIN_PROCESS_ERROR",
+    });
+
     return res.status(500).json({
       success: false,
       message: "No fue posible iniciar sesión",
@@ -694,65 +746,35 @@ export const login = async (req, res) => {
 };
 
 /* =========================================
-   TOKEN EFÍMERO REALTIME
-
-   La sesión principal continúa viviendo
-   exclusivamente en la cookie HttpOnly.
-   Este token sólo se entrega a un usuario
-   previamente autenticado y se usa en memoria
-   durante el handshake con Socket.IO/Railway.
-========================================= */
-export const createRealtimeToken = async (req, res) => {
-  try {
-    const realtimeToken =
-      generateRealtimeToken({
-        id: req.user.id,
-        role: req.user.role,
-      });
-
-    const decoded =
-      verifyRealtimeToken(
-        realtimeToken
-      );
-
-    res.set(
-      "Cache-Control",
-      "no-store"
-    );
-
-    return res.status(200).json({
-      success: true,
-      realtime_token:
-        realtimeToken,
-      expires_at:
-        decoded?.exp
-          ? new Date(
-              Number(decoded.exp) *
-                1000
-            ).toISOString()
-          : null,
-    });
-  } catch (error) {
-    console.error(
-      "Error generando token realtime:",
-      error?.message || error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "No fue posible iniciar la conexión realtime",
-      code:
-        "REALTIME_TOKEN_ERROR",
-    });
-  }
-};
-
-/* =========================================
    USUARIO AUTENTICADO
 ========================================= */
 export const logout = async (req, res) => {
+  let userId = null;
+
+  try {
+    const token = getAuthTokenFromRequest(req);
+
+    if (token) {
+      const decoded = verifyToken(token);
+      userId = decoded?.sub || null;
+    }
+  } catch {
+    /*
+     * Un token expirado o inválido no debe impedir limpiar la cookie.
+     * En ese caso simplemente no asociamos el LOGOUT a un user_id.
+     */
+  }
+
   clearAuthCookie(res);
+
+  if (userId) {
+    await recordAuthEventSafely({
+      userId,
+      eventType: "LOGOUT",
+      success: true,
+      req,
+    });
+  }
 
   return res.status(200).json({
     success: true,
