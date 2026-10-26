@@ -1,5 +1,9 @@
 import bcrypt from "bcryptjs";
 import pool from "../config/database.js";
+import {
+  getOnlineUserCount,
+  getPresenceForUsers,
+} from "../services/realtime.service.js";
 
 const ADMIN_ROLE = "ADMIN";
 const COMPANY_ROLE = "USUARIO_EMPRESA";
@@ -444,20 +448,46 @@ export const listAdminUsers = async (req, res) => {
 
     const total = Number(countResult.rows[0]?.total || 0);
 
+    const presenceByUser = getPresenceForUsers(
+      usersResult.rows.map((user) => user.id)
+    );
+
+    const usersWithPresence = usersResult.rows.map(
+      (user) => ({
+        ...user,
+        presence:
+          presenceByUser[String(user.id)] || {
+            is_online: false,
+            connected_at: null,
+            last_seen_at: null,
+            disconnected_at: null,
+            active_sessions: 0,
+            device_type: null,
+            platform: null,
+            browser: null,
+            browser_version: null,
+            sessions: [],
+          },
+      })
+    );
+
     return res.json({
       success: true,
-      data: usersResult.rows,
+      data: usersWithPresence,
       pagination: {
         page,
         limit,
         total,
         total_pages: Math.max(1, Math.ceil(total / limit)),
       },
-      summary: summaryResult.rows[0] || {
-        total: 0,
-        active: 0,
-        inactive: 0,
-        admins: 0,
+      summary: {
+        ...(summaryResult.rows[0] || {
+          total: 0,
+          active: 0,
+          inactive: 0,
+          admins: 0,
+        }),
+        online: getOnlineUserCount(),
       },
     });
   } catch (error) {

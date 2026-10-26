@@ -13,119 +13,378 @@ import {
 const ADMIN_ROOM = "ADMIN";
 const BACKOFFICE_ROOM = "BACKOFFICE";
 
-const REALTIME_ALLOWED_ROLES = new Set([
+/*
+ * Todos los usuarios autenticados pueden mantener una conexión realtime
+ * para presencia. Sólo los perfiles internos entran a las salas que
+ * reciben eventos administrativos.
+ */
+const BACKOFFICE_ROLES = new Set([
   "ADMIN",
   "VENDEDOR",
 ]);
 
 let io = null;
 
+/*
+ * userId -> Map(socketId -> sesión activa)
+ */
+const activeSessionsByUser = new Map();
+
+/*
+ * userId -> última sesión desconectada.
+ * Se conserva sólo una por usuario para poder mostrar "última actividad"
+ * sin acumular sockets antiguos en memoria.
+ */
+const lastDisconnectedByUser = new Map();
+
 const normalizeText = (value) =>
   String(value ?? "").trim();
 
-const getAdminUserFromToken = async (
+const normalizeRole = (value) =>
+  normalizeText(value).toUpperCase();
+
+const getRealtimeUserFromToken = async (
   token
 ) => {
   if (!token) {
-    const error =
-      new Error(
-        "Autenticación requerida"
-      );
-
-    error.data = {
-      code:
-        "REALTIME_AUTH_REQUIRED",
-    };
-
-    throw error;
-  }
-
-  const decoded =
-    verifyToken(token);
-
-  const result =
-    await pool.query(
-      `
-        SELECT
-          u.id,
-          u.first_name,
-          u.last_name,
-          u.email,
-          u.is_active,
-          r.name AS role
-        FROM users u
-        INNER JOIN roles r
-          ON r.id = u.role_id
-        WHERE u.id = $1
-        LIMIT 1
-      `,
-      [decoded.sub]
+    const error = new Error(
+      "Autenticación requerida"
     );
 
-  if (
-    result.rowCount === 0
-  ) {
-    const error =
-      new Error(
-        "Usuario no válido"
-      );
-
     error.data = {
-      code:
-        "REALTIME_USER_NOT_FOUND",
+      code: "REALTIME_AUTH_REQUIRED",
     };
 
     throw error;
   }
 
-  const user =
-    result.rows[0];
+  const decoded = verifyToken(token);
 
-  if (
-    user.is_active !== true
-  ) {
-    const error =
-      new Error(
-        "La cuenta se encuentra deshabilitada"
-      );
+  const result = await pool.query(
+    `
+      SELECT
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.is_active,
+        r.name AS role
+      FROM users u
+      INNER JOIN roles r
+        ON r.id = u.role_id
+      WHERE u.id = $1
+        AND u.deleted_at IS NULL
+      LIMIT 1
+    `,
+    [decoded.sub]
+  );
+
+  if (result.rowCount === 0) {
+    const error = new Error(
+      "Usuario no válido"
+    );
 
     error.data = {
-      code:
-        "REALTIME_USER_DISABLED",
+      code: "REALTIME_USER_NOT_FOUND",
     };
 
     throw error;
   }
 
-  const normalizedRole =
-    String(
-      user.role || ""
-    )
-      .trim()
-      .toUpperCase();
+  const user = result.rows[0];
 
-  if (
-    !REALTIME_ALLOWED_ROLES.has(
-      normalizedRole
-    )
-  ) {
-    const error =
-      new Error(
-        "Acceso backoffice requerido"
-      );
+  if (user.is_active !== true) {
+    const error = new Error(
+      "La cuenta se encuentra deshabilitada"
+    );
 
     error.data = {
-      code:
-        "REALTIME_BACKOFFICE_REQUIRED",
+      code: "REALTIME_USER_DISABLED",
     };
 
     throw error;
   }
 
-  user.role =
-    normalizedRole;
+  user.role = normalizeRole(user.role);
 
   return user;
+};
+
+const detectBrowser = (userAgent) => {
+  const ua = normalizeText(userAgent);
+
+  const candidates = [
+    [/Edg\/([\d.]+)/i, "Edge"],
+    [/Firefox\/([\d.]+)/i, "Firefox"],
+    [/OPR\/([\d.]+)/i, "Opera"],
+    [/Chrome\/([\d.]+)/i, "Chrome"],
+    [/Version\/([\d.]+).*Safari/i, "Safari"],
+  ];
+
+  for (const [pattern, name] of candidates) {
+    const match = ua.match(pattern);
+    if (match) {
+      return {
+        name,
+        version: match[1] || null,
+      };
+    }
+  }
+
+  return {
+    name: "Desconocido",
+    version: null,
+  };
+};
+
+const detectPlatform = (userAgent) => {
+  const ua = normalizeText(userAgent);
+
+  if (/Windows NT/i.test(ua)) return "Windows";
+  if (/Android/i.test(ua)) return "Android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iOS";
+  if (/Mac OS X|Macintosh/i.test(ua)) return "macOS";
+  if (/Linux/i.test(ua)) return "Linux";
+
+  return "Desconocido";
+};
+
+const detectDeviceType = (userAgent) => {
+  const ua = normalizeText(userAgent);
+
+  if (/iPad|Tablet/i.test(ua)) {
+    return "Tablet";
+  }
+
+  if (/Android/i.test(ua) && !/Mobile/i.test(ua)) {
+    return "Tablet";
+  }
+
+  if (/Mobi|Android|iPhone|iPod/i.test(ua)) {
+    return "Móvil";
+  }
+
+  return "Desktop";
+};
+
+const buildClientInfo = (socket) => {
+  const userAgent = normalizeText(
+    socket.handshake?.headers?.["user-agent"]
+  );
+
+  const browser = detectBrowser(userAgent);
+
+  return {
+    device_type: detectDeviceType(userAgent),
+    platform: detectPlatform(userAgent),
+    browser: browser.name,
+    browser_version: browser.version,
+    user_agent: userAgent || null,
+  };
+};
+
+const getActiveSessionMap = (userId) => {
+  const key = String(userId);
+
+  if (!activeSessionsByUser.has(key)) {
+    activeSessionsByUser.set(
+      key,
+      new Map()
+    );
+  }
+
+  return activeSessionsByUser.get(key);
+};
+
+const serializeSession = (session) => ({
+  connected_at: session.connected_at,
+  last_seen_at: session.last_seen_at,
+  device_type: session.device_type,
+  platform: session.platform,
+  browser: session.browser,
+  browser_version: session.browser_version,
+});
+
+export const getUserPresence = (userId) => {
+  const key = String(userId || "");
+  const sessionsMap = activeSessionsByUser.get(key);
+  const sessions = sessionsMap
+    ? [...sessionsMap.values()]
+    : [];
+
+  if (sessions.length > 0) {
+    const orderedByConnected = [...sessions].sort(
+      (a, b) =>
+        new Date(a.connected_at).getTime() -
+        new Date(b.connected_at).getTime()
+    );
+
+    const orderedBySeen = [...sessions].sort(
+      (a, b) =>
+        new Date(b.last_seen_at).getTime() -
+        new Date(a.last_seen_at).getTime()
+    );
+
+    const firstSession = orderedByConnected[0];
+    const currentSession = orderedBySeen[0];
+
+    return {
+      is_online: true,
+      connected_at: firstSession?.connected_at || null,
+      last_seen_at: currentSession?.last_seen_at || null,
+      disconnected_at: null,
+      active_sessions: sessions.length,
+      device_type: currentSession?.device_type || null,
+      platform: currentSession?.platform || null,
+      browser: currentSession?.browser || null,
+      browser_version: currentSession?.browser_version || null,
+      sessions: orderedByConnected.map(serializeSession),
+    };
+  }
+
+  const lastSession = lastDisconnectedByUser.get(key) || null;
+
+  return {
+    is_online: false,
+    connected_at: null,
+    last_seen_at: lastSession?.last_seen_at || null,
+    disconnected_at: lastSession?.disconnected_at || null,
+    active_sessions: 0,
+    device_type: lastSession?.device_type || null,
+    platform: lastSession?.platform || null,
+    browser: lastSession?.browser || null,
+    browser_version: lastSession?.browser_version || null,
+    sessions: [],
+  };
+};
+
+export const getPresenceForUsers = (
+  userIds = []
+) => {
+  const result = {};
+
+  for (const userId of userIds) {
+    const key = String(userId || "");
+    if (!key) continue;
+    result[key] = getUserPresence(key);
+  }
+
+  return result;
+};
+
+export const getOnlineUserCount = () => {
+  let total = 0;
+
+  for (const sessions of activeSessionsByUser.values()) {
+    if (sessions.size > 0) {
+      total += 1;
+    }
+  }
+
+  return total;
+};
+
+const emitPresenceUpdate = (userId) => {
+  if (!io || !userId) {
+    return;
+  }
+
+  io.to(ADMIN_ROOM).emit(
+    "presence:update",
+    {
+      user_id: String(userId),
+      presence: getUserPresence(userId),
+      updated_at: new Date().toISOString(),
+    }
+  );
+};
+
+const registerPresence = (socket) => {
+  const userId = normalizeText(
+    socket.data?.user?.id
+  );
+
+  if (!userId) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const clientInfo = buildClientInfo(socket);
+  const sessions = getActiveSessionMap(userId);
+
+  const session = {
+    socket_id: socket.id,
+    user_id: userId,
+    connected_at: now,
+    last_seen_at: now,
+    disconnected_at: null,
+    ...clientInfo,
+  };
+
+  sessions.set(socket.id, session);
+  socket.data.presenceUserId = userId;
+
+  emitPresenceUpdate(userId);
+};
+
+const touchPresence = (socket) => {
+  const userId = normalizeText(
+    socket.data?.presenceUserId ||
+      socket.data?.user?.id
+  );
+
+  if (!userId) {
+    return;
+  }
+
+  const sessions = activeSessionsByUser.get(userId);
+  const session = sessions?.get(socket.id);
+
+  if (!session) {
+    return;
+  }
+
+  session.last_seen_at = new Date().toISOString();
+};
+
+const unregisterPresence = (
+  socket,
+  reason = null
+) => {
+  const userId = normalizeText(
+    socket.data?.presenceUserId ||
+      socket.data?.user?.id
+  );
+
+  if (!userId) {
+    return;
+  }
+
+  const sessions = activeSessionsByUser.get(userId);
+  const session = sessions?.get(socket.id);
+
+  if (session) {
+    const now = new Date().toISOString();
+
+    lastDisconnectedByUser.set(
+      userId,
+      {
+        ...session,
+        last_seen_at: now,
+        disconnected_at: now,
+        disconnect_reason:
+          normalizeText(reason) || null,
+      }
+    );
+
+    sessions.delete(socket.id);
+  }
+
+  if (sessions && sessions.size === 0) {
+    activeSessionsByUser.delete(userId);
+  }
+
+  emitPresenceUpdate(userId);
 };
 
 export const initializeRealtimeServer = (
@@ -138,46 +397,26 @@ export const initializeRealtimeServer = (
   io = new Server(
     httpServer,
     {
-      cors:
-        corsOptions,
-
+      cors: corsOptions,
       transports: [
         "websocket",
         "polling",
       ],
-
-      pingInterval:
-        25000,
-
-      pingTimeout:
-        20000,
+      pingInterval: 25000,
+      pingTimeout: 20000,
     }
   );
 
   io.use(
-    async (
-      socket,
-      next
-    ) => {
+    async (socket, next) => {
       try {
-        const token =
-          getAuthTokenFromSocket(
-            socket
-          );
+        const token = getAuthTokenFromSocket(socket);
+        const user = await getRealtimeUserFromToken(token);
 
-        const user =
-          await getAdminUserFromToken(
-            token
-          );
-
-        socket.data.user =
-          user;
-
+        socket.data.user = user;
         return next();
       } catch (error) {
-        return next(
-          error
-        );
+        return next(error);
       }
     }
   );
@@ -185,43 +424,66 @@ export const initializeRealtimeServer = (
   io.on(
     "connection",
     (socket) => {
-      const role =
-        String(
-          socket.data
-            ?.user?.role ||
-            ""
-        )
-          .trim()
-          .toUpperCase();
+      const user = socket.data?.user || {};
+      const userId = normalizeText(user.id);
+      const role = normalizeRole(user.role);
 
-      socket.join(
-        BACKOFFICE_ROOM
+      if (userId) {
+        socket.join(`USER:${userId}`);
+      }
+
+      if (BACKOFFICE_ROLES.has(role)) {
+        socket.join(BACKOFFICE_ROOM);
+      }
+
+      if (role === "ADMIN") {
+        socket.join(ADMIN_ROOM);
+      }
+
+      registerPresence(socket);
+
+      socket.emit(
+        "presence:ready",
+        {
+          success: true,
+          user: {
+            id: userId || null,
+            role: role || null,
+          },
+          presence: userId
+            ? getUserPresence(userId)
+            : null,
+        }
       );
 
-      if (
-        role === "ADMIN"
-      ) {
-        socket.join(
-          ADMIN_ROOM
+      /* Compatibilidad con el frontend actual del backoffice. */
+      if (BACKOFFICE_ROLES.has(role)) {
+        socket.emit(
+          "admin:realtime:ready",
+          {
+            success: true,
+            user: {
+              id: userId || null,
+              role: role || null,
+            },
+          }
         );
       }
 
-      socket.emit(
-        "admin:realtime:ready",
-        {
-          success: true,
+      socket.on(
+        "presence:heartbeat",
+        () => {
+          touchPresence(socket);
+        }
+      );
 
-          user: {
-            id:
-              socket.data
-                ?.user?.id ||
-              null,
-
-            role:
-              socket.data
-                ?.user?.role ||
-              null,
-          },
+      socket.on(
+        "disconnect",
+        (reason) => {
+          unregisterPresence(
+            socket,
+            reason
+          );
         }
       );
     }
