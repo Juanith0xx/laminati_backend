@@ -333,6 +333,67 @@ const buildProjectQuotationBaseCte = () => `
         '${GERENCIA_TARGET_BRAND}',
         'ABET'
       )
+  ),
+
+  /*
+   * Fletes de cotizaciones de proyecto visibles para Italia.
+   *
+   * El monto Chile (unit_price_gross / line_total_gross) permanece
+   * en CLP y NO se mezcla con los valores Italia. Para Gerencia sólo
+   * se utiliza italy_price_usd, que actúa como snapshot manual USD
+   * del flete acordado para esa cotización.
+   */
+  project_quote_freight AS (
+    SELECT
+      q.id
+        AS quotation_id,
+      qpl.id
+        AS project_line_id,
+      qpl.description,
+      qpl.code,
+      qpl.quantity,
+      qpl.unit,
+      qpl.italy_price_usd
+        AS italy_unit_price_usd,
+      qpl.italy_price_source
+        AS valuation_source,
+      qpl.sort_order,
+
+      CASE
+        WHEN UPPER(COALESCE(qpl.description, '')) LIKE '%AÉREO%'
+          OR UPPER(COALESCE(qpl.description, '')) LIKE '%AEREO%'
+          THEN 'AIR'
+        WHEN UPPER(COALESCE(qpl.description, '')) LIKE '%MARÍTIMO%'
+          OR UPPER(COALESCE(qpl.description, '')) LIKE '%MARITIMO%'
+          THEN 'SEA'
+        ELSE 'FREIGHT'
+      END AS freight_type
+
+    FROM quotations q
+
+    INNER JOIN quotation_project_lines qpl
+      ON qpl.quotation_id = q.id
+      AND qpl.line_type IN ('SERVICE', 'OTHER')
+
+    WHERE UPPER(
+      BTRIM(
+        COALESCE(
+          q.quotation_type,
+          ''
+        )
+      )
+    ) = 'PROJECT'
+
+      AND q.visible_to_italy = TRUE
+
+      AND UPPER(
+        BTRIM(
+          COALESCE(
+            qpl.description,
+            ''
+          )
+        )
+      ) LIKE '%FLETE%'
   )
 `;
 
@@ -2241,6 +2302,52 @@ export const getGerenciaProjectQuotations =
                 ),
                 0
               )
+                AS product_total_value_usd,
+
+              COALESCE(
+                (
+                  SELECT SUM(
+                    f.quantity *
+                    f.italy_unit_price_usd
+                  )
+                  FROM project_quote_freight f
+                  WHERE f.italy_unit_price_usd IS NOT NULL
+                    AND f.quotation_id IN (
+                      SELECT DISTINCT quotation_id
+                      FROM project_quote_base
+                      ${whereClause}
+                    )
+                ),
+                0
+              )
+                AS freight_total_usd,
+
+              COALESCE(
+                SUM(
+                  quantity *
+                  italy_unit_price_usd
+                ) FILTER (
+                  WHERE italy_unit_price_usd IS NOT NULL
+                ),
+                0
+              )
+              +
+              COALESCE(
+                (
+                  SELECT SUM(
+                    f.quantity *
+                    f.italy_unit_price_usd
+                  )
+                  FROM project_quote_freight f
+                  WHERE f.italy_unit_price_usd IS NOT NULL
+                    AND f.quotation_id IN (
+                      SELECT DISTINCT quotation_id
+                      FROM project_quote_base
+                      ${whereClause}
+                    )
+                ),
+                0
+              )
                 AS total_value_usd,
 
               COUNT(
@@ -2248,7 +2355,22 @@ export const getGerenciaProjectQuotations =
               ) FILTER (
                 WHERE italy_unit_price_usd IS NULL
               )::int
-                AS quotations_with_unpriced_items
+                AS quotations_with_unpriced_items,
+
+              COALESCE(
+                (
+                  SELECT COUNT(*)
+                  FROM project_quote_freight f
+                  WHERE f.italy_unit_price_usd IS NULL
+                    AND f.quotation_id IN (
+                      SELECT DISTINCT quotation_id
+                      FROM project_quote_base
+                      ${whereClause}
+                    )
+                ),
+                0
+              )::int
+                AS unpriced_freight_items
 
             FROM project_quote_base
 
@@ -2368,10 +2490,61 @@ export const getGerenciaProjectQuotations =
                 ),
                 0
               )
+                AS product_total_value_usd,
+
+              COALESCE(
+                (
+                  SELECT SUM(
+                    f.quantity *
+                    f.italy_unit_price_usd
+                  )
+                  FROM project_quote_freight f
+                  WHERE f.quotation_id =
+                    project_quote_base.quotation_id
+                    AND f.italy_unit_price_usd IS NOT NULL
+                ),
+                0
+              )
+                AS freight_total_usd,
+
+              COALESCE(
+                SUM(
+                  quantity *
+                  italy_unit_price_usd
+                ) FILTER (
+                  WHERE italy_unit_price_usd IS NOT NULL
+                ),
+                0
+              )
+              +
+              COALESCE(
+                (
+                  SELECT SUM(
+                    f.quantity *
+                    f.italy_unit_price_usd
+                  )
+                  FROM project_quote_freight f
+                  WHERE f.quotation_id =
+                    project_quote_base.quotation_id
+                    AND f.italy_unit_price_usd IS NOT NULL
+                ),
+                0
+              )
                 AS total_value_usd,
 
               COUNT(*) FILTER (
                 WHERE italy_unit_price_usd IS NULL
+              )::int
+              +
+              COALESCE(
+                (
+                  SELECT COUNT(*)
+                  FROM project_quote_freight f
+                  WHERE f.quotation_id =
+                    project_quote_base.quotation_id
+                    AND f.italy_unit_price_usd IS NULL
+                ),
+                0
               )::int
                 AS unpriced_items,
 
@@ -2467,9 +2640,24 @@ export const getGerenciaProjectQuotations =
               row.unpriced_units
             ),
 
+          product_total_value_usd:
+            toNumber(
+              row.product_total_value_usd
+            ),
+
+          freight_total_usd:
+            toNumber(
+              row.freight_total_usd
+            ),
+
           total_value_usd:
             toNumber(
               row.total_value_usd
+            ),
+
+          unpriced_freight_items:
+            toNumber(
+              row.unpriced_freight_items
             ),
 
           quotations_with_unpriced_items:
@@ -2551,6 +2739,16 @@ export const getGerenciaProjectQuotations =
               total_units:
                 toNumber(
                   quote.total_units
+                ),
+
+              product_total_value_usd:
+                toNumber(
+                  quote.product_total_value_usd
+                ),
+
+              freight_total_usd:
+                toNumber(
+                  quote.freight_total_usd
                 ),
 
               total_value_usd:
@@ -2700,6 +2898,45 @@ export const getGerenciaProjectQuotationDetail =
           ]
         );
 
+      const freightResult =
+        await pool.query(
+          `
+            ${buildProjectQuotationBaseCte()}
+
+            SELECT
+              quotation_id,
+              project_line_id,
+              description,
+              code,
+              quantity,
+              unit,
+              italy_unit_price_usd,
+              valuation_source,
+              freight_type,
+              sort_order,
+
+              CASE
+                WHEN italy_unit_price_usd IS NULL
+                  THEN NULL
+                ELSE
+                  quantity *
+                  italy_unit_price_usd
+              END
+                AS italy_line_total_usd
+
+            FROM project_quote_freight
+
+            WHERE quotation_id = $1
+
+            ORDER BY
+              sort_order ASC,
+              project_line_id ASC
+          `,
+          [
+            quotationId,
+          ]
+        );
+
       if (
         result.rowCount ===
         0
@@ -2790,6 +3027,50 @@ export const getGerenciaProjectQuotationDetail =
           })
         );
 
+      const freightLines =
+        freightResult.rows.map(
+          (
+            row
+          ) => ({
+            project_line_id:
+              row.project_line_id,
+
+            description:
+              row.description,
+
+            code:
+              row.code ||
+              null,
+
+            freight_type:
+              row.freight_type ||
+              "FREIGHT",
+
+            quantity:
+              toNumber(
+                row.quantity
+              ),
+
+            unit:
+              row.unit ||
+              "UN",
+
+            italy_unit_price_usd:
+              toNullableNumber(
+                row.italy_unit_price_usd
+              ),
+
+            italy_total_usd:
+              toNullableNumber(
+                row.italy_line_total_usd
+              ),
+
+            valuation_source:
+              row.valuation_source ||
+              null,
+          })
+        );
+
       const totalUnits =
         items.reduce(
           (
@@ -2801,7 +3082,7 @@ export const getGerenciaProjectQuotationDetail =
           0
         );
 
-      const totalValueUsd =
+      const productTotalValueUsd =
         items.reduce(
           (
             sum,
@@ -2815,7 +3096,25 @@ export const getGerenciaProjectQuotationDetail =
           0
         );
 
-      const unpricedItems =
+      const freightTotalValueUsd =
+        freightLines.reduce(
+          (
+            sum,
+            line
+          ) =>
+            sum +
+            (
+              line.italy_total_usd ||
+              0
+            ),
+          0
+        );
+
+      const totalValueUsd =
+        productTotalValueUsd +
+        freightTotalValueUsd;
+
+      const unpricedProductItems =
         items.filter(
           (
             item
@@ -2823,6 +3122,19 @@ export const getGerenciaProjectQuotationDetail =
             item.italy_unit_price_usd ===
             null
         ).length;
+
+      const unpricedFreightItems =
+        freightLines.filter(
+          (
+            line
+          ) =>
+            line.italy_unit_price_usd ===
+            null
+        ).length;
+
+      const unpricedItems =
+        unpricedProductItems +
+        unpricedFreightItems;
 
       return res.status(
         200
@@ -2863,11 +3175,23 @@ export const getGerenciaProjectQuotationDetail =
           total_units:
             totalUnits,
 
+          product_total_usd:
+            productTotalValueUsd,
+
+          freight_total_usd:
+            freightTotalValueUsd,
+
           total_value_usd:
             totalValueUsd,
 
           unpriced_items:
             unpricedItems,
+
+          unpriced_freight_items:
+            unpricedFreightItems,
+
+          freight_lines:
+            freightLines,
 
           items,
         },

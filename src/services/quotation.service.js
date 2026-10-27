@@ -44,6 +44,7 @@ const CONVERTIBLE_STATUSES = new Set([
 const EDITABLE_STATUSES = new Set([
   "DRAFT",
   "SENT",
+  "EXPIRED",
 ]);
 
 /*
@@ -1333,8 +1334,15 @@ const resolveProjectLines =
       let italyPriceSource =
         null;
 
+      /*
+       * Un valor Italia ingresado manualmente puede pertenecer
+       * tanto a PRODUCT como a SERVICE / OTHER.
+       *
+       * Esto permite guardar, por ejemplo, el costo USD histórico
+       * de un Flete aéreo o Flete marítimo sin mezclar CLP y USD.
+       * El fallback de catálogo sigue siendo exclusivo de PRODUCT.
+       */
       if (
-        isProductLine &&
         requested
           .italy_price_usd !==
           null
@@ -2085,14 +2093,6 @@ export const updateQuotation = async ({
     const maxValidUntil = String(
       dateResult.rows[0].max_valid_until
     );
-
-    if (dateOnly(currentQuotation.valid_until) < today) {
-      throw createServiceError(
-        "La cotización está vencida y ya no puede editarse",
-        409,
-        "QUOTATION_EXPIRED"
-      );
-    }
 
     let validUntil = requestedValidUntil;
 
