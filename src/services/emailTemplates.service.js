@@ -621,3 +621,694 @@ export const buildReadyForPickupEmail = async ({
     ],
   };
 };
+
+/* =========================================
+   NUEVA COTIZACIÓN PROJECT · GERENCIA ITALIA
+   - Sin nombre de cliente.
+   - Sin RUT.
+   - Sin referencia.
+========================================= */
+const formatUsd = (
+  value
+) => {
+  const amount =
+    Number(
+      value
+    );
+
+  if (
+    !Number.isFinite(
+      amount
+    )
+  ) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat(
+    "es-CL",
+    {
+      style:
+        "currency",
+      currency:
+        "USD",
+      minimumFractionDigits:
+        2,
+      maximumFractionDigits:
+        2,
+    }
+  ).format(
+    amount
+  );
+};
+
+const formatSimpleDate = (
+  value
+) => {
+  const raw =
+    cleanText(
+      value
+    );
+
+  const match =
+    raw.match(
+      /^(\d{4})-(\d{2})-(\d{2})/
+    );
+
+  if (
+    match
+  ) {
+    return `${match[3]}-${match[2]}-${match[1]}`;
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat(
+    "es-CL",
+    {
+      day:
+        "2-digit",
+      month:
+        "2-digit",
+      year:
+        "numeric",
+    }
+  )
+    .format(
+      date
+    )
+    .replaceAll(
+      "/",
+      "-"
+    );
+};
+
+const PROJECT_STATUS_LABELS = {
+  DRAFT:
+    "Borrador",
+  SENT:
+    "Enviada",
+  REVIEW:
+    "En revisión",
+  NEGOTIATION:
+    "Negociación",
+  APPROVED:
+    "Aprobada",
+  WON:
+    "Ganada",
+  LOST:
+    "Perdida",
+  ACCEPTED:
+    "Aprobada",
+  CONVERTED:
+    "Ganada",
+  REJECTED:
+    "Perdida",
+  EXPIRED:
+    "Perdida",
+  CANCELLED:
+    "Perdida",
+};
+
+const buildGerenciaQuotationUrl = () => {
+  const value =
+    cleanText(
+      process.env
+        .EMAIL_GERENCIA_BASE_URL
+    );
+
+  if (
+    !/^https?:\/\//i.test(
+      value
+    )
+  ) {
+    const error =
+      new Error(
+        "EMAIL_GERENCIA_BASE_URL debe comenzar con http:// o https://"
+      );
+
+    error.code =
+      "EMAIL_GERENCIA_BASE_URL_INVALID";
+
+    throw error;
+  }
+
+  if (
+    String(
+      process.env
+        .NODE_ENV ||
+        ""
+    )
+      .trim()
+      .toLowerCase() ===
+      "production" &&
+    !/^https:\/\//i.test(
+      value
+    )
+  ) {
+    const error =
+      new Error(
+        "EMAIL_GERENCIA_BASE_URL debe usar HTTPS en producción"
+      );
+
+    error.code =
+      "EMAIL_GERENCIA_BASE_URL_HTTPS_REQUIRED";
+
+    throw error;
+  }
+
+  return (
+    value.replace(
+      /\/+$/,
+      ""
+    ) +
+    "/gerencia/cotizaciones-proyectos"
+  );
+};
+
+export const buildProjectQuotationItalyEmail =
+  ({
+    row,
+    to,
+  }) => {
+    const payload =
+      row?.payload &&
+      typeof row.payload ===
+        "object"
+        ? row.payload
+        : {};
+
+    const recipient =
+      cleanText(
+        to
+      ) ||
+      cleanText(
+        row
+          ?.recipient_email
+      );
+
+    const quoteNumber =
+      cleanText(
+        payload
+          .quote_number
+      ) ||
+      "Cotización";
+
+    const projectName =
+      cleanText(
+        payload
+          .project_name
+      ) ||
+      "Proyecto";
+
+    const status =
+      cleanText(
+        payload.status
+      ).toUpperCase();
+
+    const statusLabel =
+      PROJECT_STATUS_LABELS[
+        status
+      ] ||
+      status ||
+      "Borrador";
+
+    const createdAt =
+      formatSimpleDate(
+        payload
+          .created_at
+      );
+
+    const validUntil =
+      formatSimpleDate(
+        payload
+          .valid_until
+      );
+
+    const lines =
+      Array.isArray(
+        payload.lines
+      )
+        ? payload.lines
+        : [];
+
+    const products =
+      lines.filter(
+        (line) =>
+          cleanText(
+            line
+              ?.line_type
+          ).toUpperCase() ===
+          "PRODUCT"
+      );
+
+    const services =
+      lines.filter(
+        (line) =>
+          [
+            "SERVICE",
+            "OTHER",
+          ].includes(
+            cleanText(
+              line
+                ?.line_type
+            ).toUpperCase()
+          )
+      );
+
+    const totalValueUsd =
+      Number(
+        payload
+          .total_value_usd
+      );
+
+    const quotationUrl =
+      buildGerenciaQuotationUrl();
+
+    const productRows =
+      products.length >
+      0
+        ? products
+            .map(
+              (
+                line
+              ) => {
+                const unitPrice =
+                  line
+                    .italy_unit_price_usd;
+
+                const total =
+                  line
+                    .italy_total_usd;
+
+                const thickness =
+                  line
+                    .thickness_mm ===
+                  null ||
+                  line
+                    .thickness_mm ===
+                  undefined
+                    ? "—"
+                    : `${escapeHtml(
+                        line
+                          .thickness_mm
+                      )} mm`;
+
+                return `
+                  <tr>
+                    <td style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${escapeHtml(
+                        line.description ||
+                          "Producto"
+                      )}
+                    </td>
+                    <td style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${escapeHtml(
+                        line.code ||
+                          "—"
+                      )}
+                    </td>
+                    <td style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${escapeHtml(
+                        line.finish ||
+                          "—"
+                      )}
+                    </td>
+                    <td style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${thickness}
+                    </td>
+                    <td align="right" style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${escapeHtml(
+                        line.quantity
+                      )}
+                    </td>
+                    <td style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${escapeHtml(
+                        line.format_label ||
+                          line.unit ||
+                          "—"
+                      )}
+                    </td>
+                    <td align="right" style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                      ${
+                        unitPrice ===
+                        null
+                          ? '<span style="color:#b45309;">Sin valorizar</span>'
+                          : escapeHtml(
+                              formatUsd(
+                                unitPrice
+                              )
+                            )
+                      }
+                    </td>
+                    <td align="right" style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;font-weight:700;color:#171717;">
+                      ${
+                        total ===
+                        null
+                          ? '<span style="color:#b45309;">—</span>'
+                          : escapeHtml(
+                              formatUsd(
+                                total
+                              )
+                            )
+                      }
+                    </td>
+                  </tr>
+                `;
+              }
+            )
+            .join(
+              ""
+            )
+        : `
+          <tr>
+            <td colspan="8" style="padding:14px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#777777;">
+              Sin productos valorizados para Gerencia Italia.
+            </td>
+          </tr>
+        `;
+
+    const serviceRows =
+      services.length >
+      0
+        ? services
+            .map(
+              (
+                line
+              ) => `
+                <tr>
+                  <td style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                    ${escapeHtml(
+                      line.description ||
+                        "Servicio"
+                    )}
+                  </td>
+                  <td align="right" style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                    ${escapeHtml(
+                      line.quantity
+                    )}
+                  </td>
+                  <td align="right" style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#171717;">
+                    ${
+                      line
+                        .italy_unit_price_usd ===
+                      null
+                        ? '<span style="color:#b45309;">Sin valorizar</span>'
+                        : escapeHtml(
+                            formatUsd(
+                              line
+                                .italy_unit_price_usd
+                            )
+                          )
+                    }
+                  </td>
+                  <td align="right" style="padding:11px 10px;border-top:1px solid #eeeeee;font-size:12px;font-weight:700;color:#171717;">
+                    ${
+                      line
+                        .italy_total_usd ===
+                      null
+                        ? '<span style="color:#b45309;">—</span>'
+                        : escapeHtml(
+                            formatUsd(
+                              line
+                                .italy_total_usd
+                            )
+                          )
+                    }
+                  </td>
+                </tr>
+              `
+            )
+            .join(
+              ""
+            )
+        : `
+          <tr>
+            <td colspan="4" style="padding:14px 10px;border-top:1px solid #eeeeee;font-size:12px;color:#777777;">
+              Sin servicios o fletes.
+            </td>
+          </tr>
+        `;
+
+    const subject =
+      `Nueva cotización de proyecto ${quoteNumber} · Laminati`;
+
+    const text = [
+      "Laminati",
+      "",
+      "NUEVA COTIZACIÓN DE PROYECTO",
+      quoteNumber,
+      "",
+      "Hola,",
+      "Se ha generado una nueva cotización de proyecto que ya está disponible para revisar en Gerencia Italia.",
+      "",
+      `Proyecto: ${projectName}`,
+      `Fecha: ${createdAt}`,
+      `Válida hasta: ${validUntil}`,
+      `Estado: ${statusLabel}`,
+      "",
+      ...products.map(
+        (
+          line
+        ) =>
+          `${line.description || "Producto"} · ${line.code || "—"} · ${line.quantity} × ${
+            line.italy_unit_price_usd === null
+              ? "Sin valorizar"
+              : formatUsd(
+                  line.italy_unit_price_usd
+                )
+          } = ${
+            line.italy_total_usd === null
+              ? "—"
+              : formatUsd(
+                  line.italy_total_usd
+                )
+          }`
+      ),
+      "",
+      ...services.map(
+        (
+          line
+        ) =>
+          `${line.description || "Servicio"} · ${line.quantity} × ${
+            line.italy_unit_price_usd === null
+              ? "Sin valorizar"
+              : formatUsd(
+                  line.italy_unit_price_usd
+                )
+          } = ${
+            line.italy_total_usd === null
+              ? "—"
+              : formatUsd(
+                  line.italy_total_usd
+                )
+          }`
+      ),
+      "",
+      `TOTAL COTIZACIÓN (USD): ${
+        Number.isFinite(
+          totalValueUsd
+        )
+          ? formatUsd(
+              totalValueUsd
+            )
+          : "—"
+      }`,
+      "",
+      "Ver cotización:",
+      quotationUrl,
+      "",
+      "Laminati · Gerencia Italia",
+    ]
+      .filter(
+        Boolean
+      )
+      .join(
+        "\n"
+      );
+
+    const html = `<!doctype html>
+<html lang="es">
+  <body style="margin:0;padding:0;background:#f4f4f3;font-family:Arial,Helvetica,sans-serif;color:#171717;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f4f3;padding:30px 14px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:780px;background:#ffffff;border-radius:18px;overflow:hidden;">
+            <tr>
+              <td style="padding:30px 32px 8px 32px;">
+                <div style="font-size:26px;font-weight:700;letter-spacing:-0.6px;">Laminati</div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:22px 32px 32px 32px;">
+                <div style="font-size:11px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;color:#777777;">
+                  Nueva cotización de proyecto
+                </div>
+
+                <h1 style="margin:10px 0 14px 0;font-size:29px;line-height:1.15;font-weight:700;letter-spacing:-0.8px;">
+                  ${escapeHtml(
+                    quoteNumber
+                  )}
+                </h1>
+
+                <p style="margin:0 0 22px 0;font-size:15px;line-height:1.55;color:#666666;">
+                  Hola,<br>
+                  Se ha generado una nueva cotización de proyecto que ya está disponible para revisar en Gerencia Italia.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f7f7f6;border-radius:14px;margin:0 0 24px 0;">
+                  <tr>
+                    <td width="52%" style="padding:18px 20px;vertical-align:top;">
+                      <div style="font-size:12px;color:#777777;">Proyecto</div>
+                      <div style="margin-top:5px;font-size:14px;font-weight:700;color:#171717;">
+                        ${escapeHtml(
+                          projectName
+                        )}
+                      </div>
+
+                      <div style="margin-top:14px;font-size:12px;color:#777777;">Fecha</div>
+                      <div style="margin-top:5px;font-size:14px;color:#171717;">
+                        ${escapeHtml(
+                          createdAt
+                        )}
+                      </div>
+                    </td>
+
+                    <td width="48%" style="padding:18px 20px;vertical-align:top;border-left:1px solid #e8e8e6;">
+                      <div style="font-size:12px;color:#777777;">Válida hasta</div>
+                      <div style="margin-top:5px;font-size:14px;color:#171717;">
+                        ${escapeHtml(
+                          validUntil
+                        )}
+                      </div>
+
+                      <div style="margin-top:14px;font-size:12px;color:#777777;">Estado</div>
+                      <div style="margin-top:6px;display:inline-block;padding:5px 10px;background:#eaf2ff;color:#2563eb;border-radius:999px;font-size:11px;font-weight:700;">
+                        ${escapeHtml(
+                          statusLabel
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+
+                <div style="font-size:15px;font-weight:700;margin:0 0 10px 0;">
+                  Productos de proyecto
+                </div>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #eeeeec;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden;margin-bottom:24px;">
+                  <tr style="background:#f7f7f6;">
+                    <th align="left" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Producto</th>
+                    <th align="left" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Código</th>
+                    <th align="left" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Acabado</th>
+                    <th align="left" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Espesor</th>
+                    <th align="right" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Cantidad</th>
+                    <th align="left" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Formato</th>
+                    <th align="right" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Valor unit. USD</th>
+                    <th align="right" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Total USD</th>
+                  </tr>
+                  ${productRows}
+                </table>
+
+                <div style="font-size:15px;font-weight:700;margin:0 0 10px 0;">
+                  Servicios y otros
+                </div>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border:1px solid #eeeeec;border-radius:12px;border-collapse:separate;border-spacing:0;overflow:hidden;margin-bottom:12px;">
+                  <tr style="background:#f7f7f6;">
+                    <th align="left" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Descripción</th>
+                    <th align="right" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Cantidad</th>
+                    <th align="right" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Valor unit. USD</th>
+                    <th align="right" style="padding:10px;font-size:10px;color:#777777;text-transform:uppercase;">Total USD</th>
+                  </tr>
+                  ${serviceRows}
+                </table>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f6efe6;border-radius:12px;margin:0 0 22px 0;">
+                  <tr>
+                    <td align="right" style="padding:15px 18px;font-size:13px;font-weight:700;color:#171717;">
+                      TOTAL COTIZACIÓN (USD)
+                    </td>
+                    <td width="180" align="right" style="padding:15px 18px;font-size:21px;font-weight:700;color:#171717;">
+                      ${escapeHtml(
+                        Number.isFinite(
+                          totalValueUsd
+                        )
+                          ? formatUsd(
+                              totalValueUsd
+                            )
+                          : "—"
+                      )}
+                    </td>
+                  </tr>
+                </table>
+
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 22px auto;">
+                  <tr>
+                    <td bgcolor="#111111" style="border-radius:999px;">
+                      <a
+                        href="${escapeHtml(
+                          quotationUrl
+                        )}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="display:inline-block;padding:14px 28px;color:#ffffff;text-decoration:none;font-size:13px;font-weight:700;"
+                      >
+                        VER COTIZACIÓN&nbsp;&nbsp;→
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <div style="border-top:1px solid #e8e8e6;padding-top:18px;">
+                  <p style="margin:0;font-size:13px;line-height:1.55;color:#666666;">
+                    Desde este enlace seguro podrás revisar la cotización disponible en Gerencia Italia.
+                  </p>
+
+                  <p style="margin:14px 0 0 0;font-size:11px;line-height:1.55;color:#999999;word-break:break-all;">
+                    Si el botón no funciona, copia este enlace en tu navegador:<br>
+                    <a
+                      href="${escapeHtml(
+                        quotationUrl
+                      )}"
+                      style="color:#777777;text-decoration:underline;"
+                    >
+                      ${escapeHtml(
+                        quotationUrl
+                      )}
+                    </a>
+                  </p>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+    return {
+      to:
+        recipient,
+      subject,
+      text,
+      html,
+      messageId:
+        buildMessageId(
+          row.id
+        ),
+    };
+  };
+

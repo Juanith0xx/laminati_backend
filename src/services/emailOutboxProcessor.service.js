@@ -17,12 +17,17 @@ import {
 
 import {
   buildDteAcceptedEmail,
+  buildProjectQuotationItalyEmail,
   buildReadyForPickupEmail,
 } from "./emailTemplates.service.js";
+
+const PROJECT_QUOTATION_ITALY_EVENT =
+  "PROJECT_QUOTATION_CREATED_ITALY";
 
 const SUPPORTED_EVENTS = new Set([
   "DTE_ACCEPTED",
   "ORDER_READY_FOR_PICKUP",
+  PROJECT_QUOTATION_ITALY_EVENT,
 ]);
 
 const cleanText = (value) => String(value ?? "").trim();
@@ -89,6 +94,192 @@ const resolveDestination = (recipientEmail) => {
   };
 };
 
+const loadProjectQuotationItalyEvent =
+  async (
+    outboxId
+  ) => {
+    const result =
+      await pool.query(
+        `
+          SELECT
+            eo.id,
+            eo.quotation_id,
+            eo.event_type,
+            eo.recipient_email,
+            eo.status,
+            eo.attempts,
+            eo.max_attempts,
+            eo.payload,
+
+            q.quote_number,
+            q.quotation_type,
+            q.project_name,
+            q.status AS quotation_status,
+            q.visible_to_italy,
+            q.created_at,
+            q.valid_until
+
+          FROM email_outbox eo
+
+          INNER JOIN quotations q
+            ON q.id =
+              eo.quotation_id
+
+          WHERE eo.id = $1
+            AND eo.event_type =
+              $2
+
+          LIMIT 1
+        `,
+        [
+          outboxId,
+          PROJECT_QUOTATION_ITALY_EVENT,
+        ]
+      );
+
+    if (
+      result.rowCount ===
+      0
+    ) {
+      const error =
+        new Error(
+          "No fue posible cargar el evento de cotización PROJECT para Gerencia Italia"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_EVENT_LOAD_FAILED";
+
+      throw error;
+    }
+
+    return result.rows[0];
+  };
+
+const validateProjectQuotationItalyEvent =
+  (
+    row
+  ) => {
+    if (
+      cleanText(
+        row.event_type
+      ) !==
+      PROJECT_QUOTATION_ITALY_EVENT
+    ) {
+      const error =
+        new Error(
+          "El evento no corresponde a una cotización PROJECT para Gerencia Italia"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_EVENT_INVALID";
+
+      throw error;
+    }
+
+    if (
+      cleanText(
+        row.quotation_type
+      ).toUpperCase() !==
+      "PROJECT"
+    ) {
+      const error =
+        new Error(
+          "La cotización asociada no es PROJECT"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_TYPE_INVALID";
+
+      throw error;
+    }
+
+    if (
+      row
+        .visible_to_italy !==
+      true
+    ) {
+      const error =
+        new Error(
+          "La cotización ya no se encuentra visible para Gerencia Italia"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_NOT_VISIBLE";
+
+      throw error;
+    }
+
+    const payload =
+      row.payload &&
+      typeof row.payload ===
+        "object"
+        ? row.payload
+        : {};
+
+    if (
+      cleanText(
+        payload.schema
+      ) !==
+      "LAMINATIWORD_PROJECT_QUOTATION_ITALY_V1"
+    ) {
+      const error =
+        new Error(
+          "El payload de la cotización PROJECT no posee el schema esperado"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_PAYLOAD_SCHEMA_INVALID";
+
+      throw error;
+    }
+
+    if (
+      cleanText(
+        payload
+          .quotation_id
+      ) !==
+      cleanText(
+        row
+          .quotation_id
+      )
+    ) {
+      const error =
+        new Error(
+          "quotation_id del payload no coincide"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_ID_MISMATCH";
+
+      throw error;
+    }
+
+    if (
+      cleanText(
+        payload
+          .quote_number
+      ) !==
+      cleanText(
+        row
+          .quote_number
+      )
+    ) {
+      const error =
+        new Error(
+          "El número de cotización del payload no coincide"
+        );
+
+      error.code =
+        "EMAIL_OUTBOX_PROJECT_QUOTATION_NUMBER_MISMATCH";
+
+      throw error;
+    }
+
+    return {
+      payload,
+    };
+  };
+
 const loadCommonEvent = async (outboxId) => {
   const result = await pool.query(
     `
@@ -107,7 +298,6 @@ const loadCommonEvent = async (outboxId) => {
         o.order_number,
         o.customer_name,
         o.email AS order_email,
-        o.source,
         o.payment_status AS order_payment_status,
         o.status AS order_status,
         o.fulfillment_status,
@@ -253,16 +443,6 @@ const validateCommonEvent = (row) => {
     throw error;
   }
 
-  if (
-    cleanText(payload.source) &&
-    cleanText(payload.source).toUpperCase() !==
-      cleanText(row.source).toUpperCase()
-  ) {
-    const error = new Error("El canal del pedido del payload no coincide");
-    error.code = "EMAIL_OUTBOX_ORDER_SOURCE_MISMATCH";
-    throw error;
-  }
-
   if (cleanText(payload.folio) !== cleanText(row.folio)) {
     const error = new Error("El folio del payload no coincide");
     error.code = "EMAIL_OUTBOX_FOLIO_MISMATCH";
@@ -391,7 +571,7 @@ const claimEvent = async (outboxId) => {
         last_error = NULL,
         updated_at = NOW()
       WHERE id = $1
-        AND event_type IN ('DTE_ACCEPTED', 'ORDER_READY_FOR_PICKUP')
+        AND event_type IN ('DTE_ACCEPTED', 'ORDER_READY_FOR_PICKUP', 'PROJECT_QUOTATION_CREATED_ITALY')
         AND status IN ('PENDING', 'FAILED')
         AND scheduled_at <= NOW()
         AND attempts < max_attempts
@@ -451,7 +631,7 @@ export const listRunnableEmailOutboxIds = async (limit = 5) => {
     `
       SELECT id
       FROM email_outbox
-      WHERE event_type IN ('DTE_ACCEPTED', 'ORDER_READY_FOR_PICKUP')
+      WHERE event_type IN ('DTE_ACCEPTED', 'ORDER_READY_FOR_PICKUP', 'PROJECT_QUOTATION_CREATED_ITALY')
         AND status IN ('PENDING', 'FAILED')
         AND scheduled_at <= NOW()
         AND attempts < max_attempts
@@ -499,27 +679,93 @@ export const processEmailOutboxEvent = async (outboxId) => {
   let smtpDefinitivelyRejected = false;
 
   try {
-    const row = await loadCommonEvent(normalizedId);
-    const { payload, documentCredential } = validateCommonEvent(row);
-    const { destination, testMode } = resolveDestination(row.recipient_email);
-
+    let row;
     let email;
+    let testMode;
 
-    if (row.event_type === "DTE_ACCEPTED") {
-      email = await buildDteAcceptedEmail({
-        row,
-        documentCredential,
-        to: destination,
-      });
+    if (
+      claim.event_type ===
+      PROJECT_QUOTATION_ITALY_EVENT
+    ) {
+      row =
+        await loadProjectQuotationItalyEvent(
+          normalizedId
+        );
+
+      validateProjectQuotationItalyEvent(
+        row
+      );
+
+      const destinationResult =
+        resolveDestination(
+          row
+            .recipient_email
+        );
+
+      testMode =
+        destinationResult
+          .testMode;
+
+      email =
+        buildProjectQuotationItalyEmail({
+          row,
+          to:
+            destinationResult
+              .destination,
+        });
     } else {
-      const pickupCredential = validateReadyForPickup(row, payload);
+      row =
+        await loadCommonEvent(
+          normalizedId
+        );
 
-      email = await buildReadyForPickupEmail({
-        row,
+      const {
+        payload,
         documentCredential,
-        pickupCredential,
-        to: destination,
-      });
+      } =
+        validateCommonEvent(
+          row
+        );
+
+      const destinationResult =
+        resolveDestination(
+          row
+            .recipient_email
+        );
+
+      testMode =
+        destinationResult
+          .testMode;
+
+      if (
+        row.event_type ===
+        "DTE_ACCEPTED"
+      ) {
+        email =
+          await buildDteAcceptedEmail({
+            row,
+            documentCredential,
+            to:
+              destinationResult
+                .destination,
+          });
+      } else {
+        const pickupCredential =
+          validateReadyForPickup(
+            row,
+            payload
+          );
+
+        email =
+          await buildReadyForPickupEmail({
+            row,
+            documentCredential,
+            pickupCredential,
+            to:
+              destinationResult
+                .destination,
+          });
+      }
     }
 
     smtpStarted = true;

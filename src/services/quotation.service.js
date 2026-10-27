@@ -17,6 +17,9 @@ import {
 import {
   resolveRelbaseCustomerForTaxDocument,
 } from "./relbaseCustomer.service.js";
+import {
+  ensureProjectQuotationItalyEmailArtifacts,
+} from "./projectQuotationItalyEmailOutbox.service.js";
 
 const POS_WAREHOUSE_ID = 956;
 
@@ -543,6 +546,11 @@ const synchronizeProjectCustomerWithRelbase =
           customer.city || "",
         commune:
           customer.commune || "",
+        region:
+          customer.region || "",
+        country:
+          customer.country ||
+          "Chile",
         order_number:
           projectName
             ? `Proyecto ${projectName}`
@@ -586,6 +594,11 @@ const synchronizeProjectCustomerWithRelbase =
           String(
             result.customer_id
           ),
+        local_company_id:
+          result
+            .local_company
+            ?.id ||
+          null,
       },
     };
   };
@@ -2957,6 +2970,66 @@ export const createProjectQuotation =
           client,
         });
 
+      let italyEmailNotifications = {
+        skipped: true,
+        reason:
+          "NOT_VISIBLE_TO_ITALY",
+        queued: 0,
+      };
+
+      if (
+        visibleToItaly
+      ) {
+        await client.query(
+          "SAVEPOINT quotation_italy_email_outbox"
+        );
+
+        try {
+          italyEmailNotifications =
+            await ensureProjectQuotationItalyEmailArtifacts({
+              client,
+              quotationId:
+                quotation.id,
+            });
+
+          await client.query(
+            "RELEASE SAVEPOINT quotation_italy_email_outbox"
+          );
+        } catch (
+          emailOutboxError
+        ) {
+          await client.query(
+            "ROLLBACK TO SAVEPOINT quotation_italy_email_outbox"
+          );
+
+          console.error(
+            "No fue posible encolar la notificación de cotización PROJECT para Gerencia Italia:",
+            {
+              quotation_id:
+                quotation.id,
+              quote_number:
+                quotation.quote_number,
+              message:
+                emailOutboxError?.message ||
+                "Error desconocido",
+              code:
+                emailOutboxError?.code ||
+                null,
+            }
+          );
+
+          italyEmailNotifications = {
+            skipped: true,
+            reason:
+              "OUTBOX_ENQUEUE_FAILED",
+            queued: 0,
+            error_code:
+              emailOutboxError?.code ||
+              null,
+          };
+        }
+      }
+
       await client.query(
         "COMMIT"
       );
@@ -2968,6 +3041,8 @@ export const createProjectQuotation =
           projectLines,
         relbase_customer_sync:
           customerSynchronization.sync,
+        italy_email_notifications:
+          italyEmailNotifications,
       };
     } catch (error) {
       try {
@@ -3479,6 +3554,78 @@ export const updateProjectQuotation =
           client,
         });
 
+      const becameVisibleToItaly =
+        visibleToItaly ===
+          true &&
+        currentQuotation
+          .visible_to_italy !==
+          true;
+
+      let italyEmailNotifications = {
+        skipped: true,
+        reason:
+          becameVisibleToItaly
+            ? "NOT_PROCESSED"
+            : "VISIBILITY_NOT_NEW",
+        queued: 0,
+      };
+
+      if (
+        becameVisibleToItaly
+      ) {
+        await client.query(
+          "SAVEPOINT quotation_italy_email_outbox"
+        );
+
+        try {
+          italyEmailNotifications =
+            await ensureProjectQuotationItalyEmailArtifacts({
+              client,
+              quotationId:
+                id,
+            });
+
+          await client.query(
+            "RELEASE SAVEPOINT quotation_italy_email_outbox"
+          );
+        } catch (
+          emailOutboxError
+        ) {
+          await client.query(
+            "ROLLBACK TO SAVEPOINT quotation_italy_email_outbox"
+          );
+
+          console.error(
+            "No fue posible encolar la notificación de cotización PROJECT para Gerencia Italia:",
+            {
+              quotation_id:
+                id,
+              quote_number:
+                quotationResult
+                  .rows[0]
+                  ?.quote_number ||
+                null,
+              message:
+                emailOutboxError?.message ||
+                "Error desconocido",
+              code:
+                emailOutboxError?.code ||
+                null,
+            }
+          );
+
+          italyEmailNotifications = {
+            skipped: true,
+            reason:
+              "OUTBOX_ENQUEUE_FAILED",
+            queued: 0,
+            error_code:
+              emailOutboxError?.code ||
+              null,
+          };
+        }
+      }
+
       await client.query(
         "COMMIT"
       );
@@ -3502,6 +3649,9 @@ export const updateProjectQuotation =
 
         relbase_customer_sync:
           customerSynchronization.sync,
+
+        italy_email_notifications:
+          italyEmailNotifications,
       };
     } catch (error) {
       try {

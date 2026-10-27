@@ -2253,6 +2253,455 @@ const extractRelbaseCustomerId = (
   return null;
 };
 
+
+/* =========================================
+   PERSISTIR EMPRESA LOCAL DESDE RELBASE
+
+   Objetivo:
+   - Mantener customer_companies como maestro local.
+   - Persistir datos completados manualmente en cotización.
+   - Vincular definitivamente relbase_customer_id.
+   - No crear registros locales para PERSON.
+========================================= */
+const upsertLocalCompanyFromResolvedCustomer =
+  async ({
+    customer_type,
+    rut,
+    legal_name,
+    trade_name = "",
+    business_activity = "",
+    email = "",
+    phone = "",
+    address = "",
+    commune = "",
+    city = "",
+    region = "",
+    country = "Chile",
+    relbase_customer_id,
+  }) => {
+    const normalizedCustomerType =
+      String(
+        customer_type || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      normalizedCustomerType !==
+      "COMPANY"
+    ) {
+      return null;
+    }
+
+    const normalizedRut =
+      getValidatedRelbaseRut(
+        rut
+      );
+
+    const normalizedLegalName =
+      String(
+        legal_name || ""
+      ).trim();
+
+    const normalizedRelbaseCustomerId =
+      String(
+        relbase_customer_id ??
+        ""
+      ).trim();
+
+    if (
+      !normalizedLegalName
+    ) {
+      throw createServiceError(
+        "La razón social es obligatoria para guardar la empresa local",
+        400,
+        "LOCAL_COMPANY_LEGAL_NAME_REQUIRED"
+      );
+    }
+
+    if (
+      !normalizedRelbaseCustomerId
+    ) {
+      throw createServiceError(
+        "Falta el identificador Relbase para guardar la empresa local",
+        409,
+        "LOCAL_COMPANY_RELBASE_ID_REQUIRED"
+      );
+    }
+
+    const values = {
+      trade_name:
+        String(
+          trade_name || ""
+        ).trim(),
+      business_activity:
+        String(
+          business_activity || ""
+        ).trim(),
+      billing_email:
+        String(
+          email || ""
+        ).trim(),
+      phone:
+        String(
+          phone || ""
+        ).trim(),
+      address_line:
+        String(
+          address || ""
+        ).trim(),
+      commune:
+        String(
+          commune || ""
+        ).trim(),
+      city:
+        String(
+          city || ""
+        ).trim(),
+      region:
+        String(
+          region || ""
+        ).trim(),
+      country:
+        String(
+          country || "Chile"
+        ).trim() ||
+        "Chile",
+    };
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      /*
+       * Serializa el alta/actualización por RUT
+       * para evitar duplicados si dos cotizaciones
+       * intentan crear el mismo cliente a la vez.
+       */
+      await client.query(
+        `
+          SELECT
+            pg_advisory_xact_lock(
+              hashtext($1)
+            )
+        `,
+        [
+          normalizedRut,
+        ]
+      );
+
+      const existingResult =
+        await client.query(
+          `
+            SELECT
+              id,
+              rut,
+              relbase_customer_id
+            FROM customer_companies
+            WHERE
+              REGEXP_REPLACE(
+                UPPER(
+                  COALESCE(
+                    rut,
+                    ''
+                  )
+                ),
+                '[^0-9K]',
+                '',
+                'g'
+              ) =
+              REGEXP_REPLACE(
+                UPPER($1),
+                '[^0-9K]',
+                '',
+                'g'
+              )
+            ORDER BY
+              created_at ASC
+            LIMIT 1
+            FOR UPDATE
+          `,
+          [
+            normalizedRut,
+          ]
+        );
+
+      let localCompany =
+        null;
+
+      if (
+        existingResult.rowCount >
+        0
+      ) {
+        const existing =
+          existingResult.rows[0];
+
+        if (
+          existing.relbase_customer_id &&
+          String(
+            existing.relbase_customer_id
+          ) !==
+            normalizedRelbaseCustomerId
+        ) {
+          throw createServiceError(
+            "La empresa local ya está vinculada a un cliente Relbase diferente",
+            409,
+            "LOCAL_COMPANY_RELBASE_ID_MISMATCH"
+          );
+        }
+
+        const updateResult =
+          await client.query(
+            `
+              UPDATE customer_companies
+              SET
+                legal_name =
+                  COALESCE(
+                    NULLIF(
+                      $2,
+                      ''
+                    ),
+                    legal_name
+                  ),
+                trade_name =
+                  COALESCE(
+                    NULLIF(
+                      $3,
+                      ''
+                    ),
+                    trade_name
+                  ),
+                business_activity =
+                  COALESCE(
+                    NULLIF(
+                      $4,
+                      ''
+                    ),
+                    business_activity
+                  ),
+                billing_email =
+                  COALESCE(
+                    NULLIF(
+                      $5,
+                      ''
+                    ),
+                    billing_email
+                  ),
+                phone =
+                  COALESCE(
+                    NULLIF(
+                      $6,
+                      ''
+                    ),
+                    phone
+                  ),
+                address_line =
+                  COALESCE(
+                    NULLIF(
+                      $7,
+                      ''
+                    ),
+                    address_line
+                  ),
+                commune =
+                  COALESCE(
+                    NULLIF(
+                      $8,
+                      ''
+                    ),
+                    commune
+                  ),
+                city =
+                  COALESCE(
+                    NULLIF(
+                      $9,
+                      ''
+                    ),
+                    city
+                  ),
+                region =
+                  COALESCE(
+                    NULLIF(
+                      $10,
+                      ''
+                    ),
+                    region
+                  ),
+                country =
+                  COALESCE(
+                    NULLIF(
+                      $11,
+                      ''
+                    ),
+                    country,
+                    'Chile'
+                  ),
+                relbase_customer_id =
+                  $12,
+                updated_at =
+                  NOW()
+              WHERE id =
+                $1::uuid
+              RETURNING
+                id,
+                legal_name,
+                trade_name,
+                rut,
+                business_activity,
+                billing_email,
+                phone,
+                address_line,
+                commune,
+                city,
+                region,
+                country,
+                relbase_customer_id,
+                is_active,
+                created_at,
+                updated_at
+            `,
+            [
+              existing.id,
+              normalizedLegalName,
+              values.trade_name,
+              values.business_activity,
+              values.billing_email,
+              values.phone,
+              values.address_line,
+              values.commune,
+              values.city,
+              values.region,
+              values.country,
+              normalizedRelbaseCustomerId,
+            ]
+          );
+
+        localCompany =
+          updateResult.rows[0] ||
+          null;
+      } else {
+        const insertResult =
+          await client.query(
+            `
+              INSERT INTO customer_companies (
+                legal_name,
+                trade_name,
+                rut,
+                business_activity,
+                billing_email,
+                phone,
+                address_line,
+                commune,
+                city,
+                region,
+                country,
+                relbase_customer_id,
+                is_active
+              )
+              VALUES (
+                $1,
+                NULLIF(
+                  $2,
+                  ''
+                ),
+                $3,
+                NULLIF(
+                  $4,
+                  ''
+                ),
+                NULLIF(
+                  $5,
+                  ''
+                ),
+                NULLIF(
+                  $6,
+                  ''
+                ),
+                NULLIF(
+                  $7,
+                  ''
+                ),
+                NULLIF(
+                  $8,
+                  ''
+                ),
+                NULLIF(
+                  $9,
+                  ''
+                ),
+                NULLIF(
+                  $10,
+                  ''
+                ),
+                $11,
+                $12,
+                TRUE
+              )
+              RETURNING
+                id,
+                legal_name,
+                trade_name,
+                rut,
+                business_activity,
+                billing_email,
+                phone,
+                address_line,
+                commune,
+                city,
+                region,
+                country,
+                relbase_customer_id,
+                is_active,
+                created_at,
+                updated_at
+            `,
+            [
+              normalizedLegalName,
+              values.trade_name,
+              normalizedRut,
+              values.business_activity,
+              values.billing_email,
+              values.phone,
+              values.address_line,
+              values.commune,
+              values.city,
+              values.region,
+              values.country,
+              normalizedRelbaseCustomerId,
+            ]
+          );
+
+        localCompany =
+          insertResult.rows[0] ||
+          null;
+      }
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return localCompany;
+    } catch (
+      error
+    ) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {
+        // La transacción podría haber terminado.
+      }
+
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
 /* =========================================
    RESOLVER CLIENTE PARA BOLETA / FACTURA
 
@@ -2278,6 +2727,8 @@ export const resolveRelbaseCustomerForTaxDocument =
     address = "",
     city = "",
     commune = "",
+    region = "",
+    country = "Chile",
     city_id = null,
     commune_id = null,
     order_number = null,
@@ -2503,6 +2954,26 @@ export const resolveRelbaseCustomerForTaxDocument =
       );
 
     if (customerId) {
+      const localCompany =
+        await upsertLocalCompanyFromResolvedCustomer({
+          customer_type,
+          rut:
+            normalizedRut,
+          legal_name:
+            customerName,
+          trade_name,
+          business_activity,
+          email,
+          phone,
+          address,
+          commune,
+          city,
+          region,
+          country,
+          relbase_customer_id:
+            customerId,
+        });
+
       return {
         resolved: true,
         found:
@@ -2525,6 +2996,8 @@ export const resolveRelbaseCustomerForTaxDocument =
           customerId,
         customer:
           verifiedCustomer,
+        local_company:
+          localCompany,
       };
     }
 
