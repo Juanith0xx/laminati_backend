@@ -46,35 +46,49 @@ const requireUuid = (value, label) => {
 };
 const num = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
 
-const ensureProject = async (quotationId, client = pool) => {
+const ensureBoardQuotation = async (quotationId, client = pool) => {
   const id = requireUuid(quotationId, "quotationId");
   const result = await client.query(
-    `SELECT * FROM quotations WHERE id = $1 AND quotation_type = 'PROJECT' LIMIT 1`,
+    `SELECT * FROM quotations WHERE id = $1 LIMIT 1`,
     [id]
   );
-  if (!result.rowCount) throw serviceError("La cotización de proyecto no existe", 404, "PROJECT_BOARD_NOT_FOUND");
+
+  if (!result.rowCount) {
+    throw serviceError(
+      "La cotización no existe",
+      404,
+      "PROJECT_BOARD_NOT_FOUND"
+    );
+  }
+
+  const quotation = result.rows[0];
 
   await client.query(
-    `INSERT INTO quotation_project_management (quotation_id, stage, assigned_to, last_activity_at)
+    `INSERT INTO quotation_project_management
+       (quotation_id, stage, priority, assigned_to, last_activity_at)
      VALUES (
        $1,
-       CASE WHEN $2 = 'SENT' THEN 'SENT'
-            WHEN $2 = 'ACCEPTED' THEN 'APPROVED'
-            WHEN $2 IN ('REJECTED','CANCELLED') THEN 'LOST'
-            ELSE 'DRAFT' END,
+       CASE
+         WHEN $2 = 'SENT' THEN 'SENT'
+         WHEN $2 = 'ACCEPTED' THEN 'APPROVED'
+         WHEN $2 = 'CONVERTED' THEN 'WON'
+         WHEN $2 IN ('REJECTED', 'CANCELLED') THEN 'LOST'
+         ELSE 'DRAFT'
+       END,
+       'MEDIUM',
        $3,
-       NOW()
+       COALESCE($4, NOW())
      )
      ON CONFLICT (quotation_id) DO NOTHING`,
-    [id, result.rows[0].status, result.rows[0].created_by]
+    [id, quotation.status, quotation.created_by, quotation.updated_at || quotation.created_at]
   );
 
-  return result.rows[0];
+  return quotation;
 };
 
 const filters = (query = {}) => {
   const values = [];
-  const conditions = ["q.quotation_type = 'PROJECT'"];
+  const conditions = ["1=1"];
   const add = (v) => { values.push(v); return `$${values.length}`; };
 
   const search = clean(query.search);
@@ -88,9 +102,22 @@ const filters = (query = {}) => {
       OR COALESCE(q.legal_name,'') ILIKE ${p}
       OR q.rut ILIKE ${p}
       OR EXISTS (
-        SELECT 1 FROM quotation_project_lines qpl
+        SELECT 1
+        FROM quotation_project_lines qpl
         WHERE qpl.quotation_id = q.id
-        AND (COALESCE(qpl.code,'') ILIKE ${p} OR qpl.description ILIKE ${p})
+          AND (
+            COALESCE(qpl.code,'') ILIKE ${p}
+            OR COALESCE(qpl.description,'') ILIKE ${p}
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM quotation_items qi
+        WHERE qi.quotation_id = q.id
+          AND (
+            COALESCE(qi.sku,'') ILIKE ${p}
+            OR COALESCE(qi.product_name,'') ILIKE ${p}
+          )
       )
     )`);
   }
@@ -98,11 +125,13 @@ const filters = (query = {}) => {
   const priority = clean(query.priority).toUpperCase();
   if (priority && priority !== "ALL") {
     if (!PRIORITIES.has(priority)) throw serviceError("Prioridad inválida");
-    conditions.push(`qpm.priority = ${add(priority)}`);
+    conditions.push(`COALESCE(qpm.priority, 'MEDIUM') = ${add(priority)}`);
   }
 
   if (query.assigned_to && clean(query.assigned_to) !== "ALL") {
-    conditions.push(`qpm.assigned_to = ${add(requireUuid(query.assigned_to,"assigned_to"))}::uuid`);
+    conditions.push(
+      `COALESCE(qpm.assigned_to, q.created_by) = ${add(requireUuid(query.assigned_to,"assigned_to"))}::uuid`
+    );
   }
 
   return { values, where: conditions.join(" AND ") };
@@ -113,11 +142,22 @@ export const listProjectBoard = async ({ query = {} } = {}) => {
 
   const result = await pool.query(
     `SELECT
-       q.id, q.quote_number, q.status, q.project_name, q.project_reference,
+       q.id, q.quote_number, q.status, q.quotation_type,
+       q.project_name, q.project_reference,
        q.customer_name, q.legal_name, q.rut, q.email, q.total, q.currency,
        q.valid_until, q.sent_at, q.created_at, q.updated_at,
-       qpm.stage, qpm.priority, qpm.assigned_to, qpm.channel, qpm.next_action,
-       qpm.next_action_at, qpm.lost_reason, qpm.won_at, qpm.last_activity_at,
+       COALESCE(qpm.stage, CASE
+         WHEN q.status = 'SENT' THEN 'SENT'
+         WHEN q.status = 'ACCEPTED' THEN 'APPROVED'
+         WHEN q.status = 'CONVERTED' THEN 'WON'
+         WHEN q.status IN ('REJECTED', 'CANCELLED') THEN 'LOST'
+         ELSE 'DRAFT'
+       END) AS stage,
+       COALESCE(qpm.priority, 'MEDIUM') AS priority,
+       COALESCE(qpm.assigned_to, q.created_by) AS assigned_to,
+       qpm.channel, qpm.next_action,
+       qpm.next_action_at, qpm.lost_reason, qpm.won_at,
+       COALESCE(qpm.last_activity_at, q.updated_at, q.created_at) AS last_activity_at,
        CONCAT_WS(' ', assigned.first_name, assigned.last_name) AS assigned_name,
        CONCAT_WS(' ', creator.first_name, creator.last_name) AS created_by_name,
        COALESCE(mail.open_count,0)::int AS open_count,
@@ -129,8 +169,8 @@ export const listProjectBoard = async ({ query = {} } = {}) => {
        nf.scheduled_at AS next_followup_at,
        COALESCE(lines.codes,'') AS product_codes
      FROM quotations q
-     INNER JOIN quotation_project_management qpm ON qpm.quotation_id = q.id
-     LEFT JOIN users assigned ON assigned.id = qpm.assigned_to
+     LEFT JOIN quotation_project_management qpm ON qpm.quotation_id = q.id
+     LEFT JOIN users assigned ON assigned.id = COALESCE(qpm.assigned_to, q.created_by)
      LEFT JOIN users creator ON creator.id = q.created_by
      LEFT JOIN LATERAL (
        SELECT COALESCE(SUM(open_count),0)::int AS open_count
@@ -147,12 +187,21 @@ export const listProjectBoard = async ({ query = {} } = {}) => {
        ORDER BY scheduled_at ASC LIMIT 1
      ) nf ON TRUE
      LEFT JOIN LATERAL (
-       SELECT STRING_AGG(DISTINCT NULLIF(BTRIM(code),''), ', ') AS codes
-       FROM quotation_project_lines WHERE quotation_id = q.id
+       SELECT STRING_AGG(DISTINCT code, ', ' ORDER BY code) AS codes
+       FROM (
+         SELECT NULLIF(BTRIM(qpl.code),'') AS code
+         FROM quotation_project_lines qpl
+         WHERE qpl.quotation_id = q.id
+         UNION ALL
+         SELECT NULLIF(BTRIM(qi.sku),'') AS code
+         FROM quotation_items qi
+         WHERE qi.quotation_id = q.id
+       ) all_codes
+       WHERE code IS NOT NULL
      ) lines ON TRUE
      WHERE ${where}
-     ORDER BY qpm.updated_at DESC, q.created_at DESC
-     LIMIT 500`,
+     ORDER BY COALESCE(qpm.updated_at, q.updated_at, q.created_at) DESC, q.created_at DESC
+     `,
     values
   );
 
@@ -169,18 +218,56 @@ export const listProjectBoard = async ({ query = {} } = {}) => {
     projects,
     summary: {
       total_projects: projects.length,
+      total_quotations: projects.length,
       active_projects: projects.filter((p) => !["WON","LOST"].includes(p.stage)).length,
+      active_quotations: projects.filter((p) => !["WON","LOST"].includes(p.stage)).length,
       in_review: projects.filter((p) => ["REVIEW","NEGOTIATION"].includes(p.stage)).length,
       won_projects: count("WON"),
+      won_quotations: count("WON"),
       lost_projects: count("LOST"),
+      lost_quotations: count("LOST"),
       total_quoted: projects.reduce((sum,p) => sum + num(p.total), 0),
     },
   };
 };
 
 export const getProjectBoardDetail = async ({ quotationId }) => {
-  const quotation = await ensureProject(quotationId);
+  const quotation = await ensureBoardQuotation(quotationId);
   const id = quotation.id;
+
+  const linesPromise = clean(quotation.quotation_type).toUpperCase() === "PROJECT"
+    ? pool.query(
+        `SELECT id,line_type,product_id,description,code,brand,collection,finish,
+                thickness_mm,quantity,unit,format_label,width_cm,height_cm,
+                unit_price_gross,line_total_gross,italy_price_usd,sort_order
+         FROM quotation_project_lines
+         WHERE quotation_id = $1
+         ORDER BY sort_order, created_at`, [id]
+      )
+    : pool.query(
+        `SELECT
+           id,
+           'PRODUCT'::text AS line_type,
+           product_id,
+           product_name AS description,
+           sku AS code,
+           NULL::text AS brand,
+           NULL::text AS collection,
+           NULL::text AS finish,
+           NULL::numeric AS thickness_mm,
+           quantity,
+           'UN'::text AS unit,
+           NULL::text AS format_label,
+           NULL::numeric AS width_cm,
+           NULL::numeric AS height_cm,
+           unit_price_gross,
+           line_total AS line_total_gross,
+           NULL::numeric AS italy_price_usd,
+           ROW_NUMBER() OVER (ORDER BY created_at, id)::int - 1 AS sort_order
+         FROM quotation_items
+         WHERE quotation_id = $1
+         ORDER BY created_at, id`, [id]
+      );
 
   const [management, lines, followups, timeline] = await Promise.all([
     pool.query(
@@ -189,14 +276,7 @@ export const getProjectBoardDetail = async ({ quotationId }) => {
        LEFT JOIN users u ON u.id = qpm.assigned_to
        WHERE qpm.quotation_id = $1`, [id]
     ),
-    pool.query(
-      `SELECT id,line_type,product_id,description,code,brand,collection,finish,
-              thickness_mm,quantity,unit,format_label,width_cm,height_cm,
-              unit_price_gross,line_total_gross,italy_price_usd,sort_order
-       FROM quotation_project_lines
-       WHERE quotation_id = $1
-       ORDER BY sort_order, created_at`, [id]
-    ),
+    linesPromise,
     pool.query(
       `SELECT f.*,
               CONCAT_WS(' ',a.first_name,a.last_name) AS assigned_name,
@@ -209,7 +289,7 @@ export const getProjectBoardDetail = async ({ quotationId }) => {
     ),
     pool.query(
       `SELECT * FROM (
-         SELECT 'PROJECT'::text AS source,e.event_type,e.title,e.description,e.event_at,e.metadata,
+         SELECT 'BOARD'::text AS source,e.event_type,e.title,e.description,e.event_at,e.metadata,
                 CONCAT_WS(' ',u.first_name,u.last_name) AS actor_name
          FROM quotation_project_events e
          LEFT JOIN users u ON u.id = e.actor_user_id
@@ -283,7 +363,7 @@ const notifyStageChange = async ({
       clean(context.legal_name) ||
       clean(context.customer_name) ||
       clean(context.quote_number) ||
-      "Cotización de proyecto";
+      "Cotización";
 
     const actorName =
       clean(context.actor_name) ||
@@ -366,7 +446,7 @@ const notifyStageChange = async ({
 export const updateProjectBoard = async ({ quotationId, actorUserId, body = {} }) => {
   const id = requireUuid(quotationId,"quotationId");
   const actorId = requireUuid(actorUserId,"actorUserId");
-  await ensureProject(id);
+  await ensureBoardQuotation(id);
 
   const current = (await pool.query(
     `SELECT * FROM quotation_project_management WHERE quotation_id = $1`, [id]
@@ -420,7 +500,7 @@ export const updateProjectBoard = async ({ quotationId, actorUserId, body = {} }
     await pool.query(
       `INSERT INTO quotation_project_events
        (quotation_id,event_type,title,description,actor_user_id,metadata)
-       VALUES ($1,'PROJECT_UPDATED','Proyecto actualizado',$2,$3,$4::jsonb)`,
+       VALUES ($1,'PROJECT_UPDATED','Cotización actualizada',$2,$3,$4::jsonb)`,
       [id,changes.join(" · "),actorId,JSON.stringify({stage,priority,channel})]
     );
   }
@@ -440,7 +520,7 @@ export const updateProjectBoard = async ({ quotationId, actorUserId, body = {} }
 export const addProjectNote = async ({ quotationId, actorUserId, note }) => {
   const id=requireUuid(quotationId,"quotationId");
   const actor=requireUuid(actorUserId,"actorUserId");
-  await ensureProject(id);
+  await ensureBoardQuotation(id);
   const description=clean(note);
   if (!description) throw serviceError("La nota es obligatoria");
   const result=await pool.query(
@@ -456,7 +536,7 @@ export const addProjectNote = async ({ quotationId, actorUserId, note }) => {
 export const createProjectFollowup = async ({ quotationId, actorUserId, body = {} }) => {
   const id=requireUuid(quotationId,"quotationId");
   const actor=requireUuid(actorUserId,"actorUserId");
-  await ensureProject(id);
+  await ensureBoardQuotation(id);
 
   const title=clean(body.title);
   const type=clean(body.followup_type||"FOLLOW_UP").toUpperCase();
@@ -500,7 +580,7 @@ export const updateProjectFollowup = async ({ quotationId, followupId, actorUser
   const qid=requireUuid(quotationId,"quotationId");
   const fid=requireUuid(followupId,"followupId");
   const actor=requireUuid(actorUserId,"actorUserId");
-  await ensureProject(qid);
+  await ensureBoardQuotation(qid);
 
   const currentResult=await pool.query(
     `SELECT * FROM quotation_project_followups WHERE id=$1 AND quotation_id=$2`, [fid,qid]
@@ -551,8 +631,7 @@ export const getProjectCalendar = async ({ query = {} } = {}) => {
             f.end_at,f.status
      FROM quotation_project_followups f
      JOIN quotations q ON q.id=f.quotation_id
-     WHERE q.quotation_type='PROJECT'
-       AND f.scheduled_at >= $1::timestamptz
+     WHERE f.scheduled_at >= $1::timestamptz
        AND f.scheduled_at < $2::timestamptz
        AND f.status <> 'CANCELLED'
      UNION ALL
@@ -560,8 +639,7 @@ export const getProjectCalendar = async ({ query = {} } = {}) => {
             'QUOTE_EXPIRY','Vence cotización',NULL::text,q.valid_until::timestamp,
             NULL::timestamptz,q.status
      FROM quotations q
-     WHERE q.quotation_type='PROJECT'
-       AND q.valid_until >= $1::date
+     WHERE q.valid_until >= $1::date
        AND q.valid_until < $2::date
      ORDER BY event_at ASC`, [from,to]
   );
