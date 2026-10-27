@@ -134,11 +134,11 @@ const PROJECT_QUOTE_STATUSES =
   new Set([
     "DRAFT",
     "SENT",
-    "ACCEPTED",
-    "REJECTED",
-    "EXPIRED",
-    "CONVERTED",
-    "CANCELLED",
+    "REVIEW",
+    "NEGOTIATION",
+    "APPROVED",
+    "WON",
+    "LOST",
   ]);
 
 const buildProjectQuotationBaseCte = () => `
@@ -156,7 +156,35 @@ const buildProjectQuotationBaseCte = () => `
       q.quote_number,
       q.project_name,
       q.project_reference,
-      q.status,
+
+      q.status
+        AS quotation_status,
+
+      COALESCE(
+        qpm.stage,
+        CASE UPPER(
+          BTRIM(
+            COALESCE(
+              q.status,
+              'DRAFT'
+            )
+          )
+        )
+          WHEN 'DRAFT' THEN 'DRAFT'
+          WHEN 'SENT' THEN 'SENT'
+          WHEN 'ACCEPTED' THEN 'APPROVED'
+          WHEN 'CONVERTED' THEN 'WON'
+          WHEN 'REJECTED' THEN 'LOST'
+          WHEN 'EXPIRED' THEN 'LOST'
+          WHEN 'CANCELLED' THEN 'LOST'
+          ELSE 'DRAFT'
+        END
+      )
+        AS status,
+
+      qpm.stage
+        AS board_stage,
+
       q.created_at,
       q.valid_until,
 
@@ -261,6 +289,9 @@ const buildProjectQuotationBaseCte = () => `
       END AS valuation_source
 
     FROM quotations q
+
+    LEFT JOIN quotation_project_management qpm
+      ON qpm.quotation_id = q.id
 
     INNER JOIN quotation_project_lines qpl
       ON qpl.quotation_id = q.id
@@ -2467,6 +2498,10 @@ export const getGerenciaProjectQuotations =
                 AS project_reference,
               MIN(status)
                 AS status,
+              MIN(quotation_status)
+                AS quotation_status,
+              MIN(board_stage)
+                AS board_stage,
               MIN(created_at)
                 AS created_at,
               MIN(valid_until)
@@ -2725,6 +2760,14 @@ export const getGerenciaProjectQuotations =
               status:
                 quote.status,
 
+              board_stage:
+                quote.board_stage ||
+                null,
+
+              quotation_status:
+                quote.quotation_status ||
+                null,
+
               created_at:
                 quote.created_at,
 
@@ -2844,6 +2887,8 @@ export const getGerenciaProjectQuotationDetail =
               project_name,
               project_reference,
               status,
+              quotation_status,
+              board_stage,
               created_at,
               valid_until,
 
@@ -3165,6 +3210,14 @@ export const getGerenciaProjectQuotationDetail =
 
           status:
             first.status,
+
+          board_stage:
+            first.board_stage ||
+            null,
+
+          quotation_status:
+            first.quotation_status ||
+            null,
 
           created_at:
             first.created_at,
