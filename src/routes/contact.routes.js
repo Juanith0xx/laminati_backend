@@ -1,5 +1,9 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+
+import {
+  rateLimitKeyGenerator,
+} from "../utils/rateLimit.utils.js";
 import { createContactMessage } from "../controllers/contact.controller.js";
 
 const router = Router();
@@ -7,6 +11,7 @@ const router = Router();
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 8,
+  keyGenerator: rateLimitKeyGenerator,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {

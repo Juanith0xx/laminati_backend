@@ -2,6 +2,10 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 
 import {
+  rateLimitKeyGenerator,
+} from "../utils/rateLimit.utils.js";
+
+import {
   register,
   registerCompany,
   login,
@@ -32,6 +36,7 @@ const router = Router();
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  keyGenerator: rateLimitKeyGenerator,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {
@@ -57,6 +62,7 @@ const loginLimiter = rateLimit({
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 10,
+  keyGenerator: rateLimitKeyGenerator,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {
@@ -118,6 +124,7 @@ router.delete(
 const passwordChangeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
+  keyGenerator: rateLimitKeyGenerator,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {

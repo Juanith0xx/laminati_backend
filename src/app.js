@@ -16,6 +16,10 @@ import {
   corsOptions,
 } from "./config/cors.js";
 
+import {
+  rateLimitKeyGenerator,
+} from "./utils/rateLimit.utils.js";
+
 import authRoutes from "./routes/auth.routes.js";
 
 import adminRoutes from "./routes/admin.routes.js";
@@ -117,6 +121,9 @@ const apiLimiter =
 
     limit:
       500,
+
+    keyGenerator:
+      rateLimitKeyGenerator,
 
     standardHeaders:
       "draft-8",
