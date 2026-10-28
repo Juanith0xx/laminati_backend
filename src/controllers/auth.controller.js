@@ -274,7 +274,6 @@ export const register = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Cuenta creada correctamente",
-      token,
       user: {
         ...user,
         role: PUBLIC_ROLE_CLIENT,
@@ -547,7 +546,6 @@ export const registerCompany = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Cuenta empresa creada correctamente",
-      token,
       user: {
         ...user,
         role: PUBLIC_ROLE_COMPANY,
@@ -721,7 +719,6 @@ export const login = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Inicio de sesión correcto",
-      token,
       user: {
         ...publicUser,
         role_label: getRoleLabel(user.role),

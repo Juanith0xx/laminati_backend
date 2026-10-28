@@ -70,6 +70,7 @@ export const generateToken = (user) => {
       expiresIn: getTokenExpirationForRole(
         user.role
       ),
+      algorithm: "HS256",
       issuer: "laminatiword-api",
       audience: "laminatiword",
     }
@@ -81,6 +82,7 @@ export const verifyToken = (token) => {
     token,
     process.env.JWT_SECRET,
     {
+      algorithms: ["HS256"],
       issuer: "laminatiword-api",
       audience: "laminatiword",
     }
@@ -113,6 +115,7 @@ export const generateRealtimeToken = (user) => {
       expiresIn:
         process.env.JWT_REALTIME_EXPIRES_IN ||
         "2m",
+      algorithm: "HS256",
       issuer: "laminatiword-api",
       audience: REALTIME_TOKEN_AUDIENCE,
     }
@@ -124,6 +127,7 @@ export const verifyRealtimeToken = (token) => {
     token,
     process.env.JWT_SECRET,
     {
+      algorithms: ["HS256"],
       issuer: "laminatiword-api",
       audience: REALTIME_TOKEN_AUDIENCE,
     }
