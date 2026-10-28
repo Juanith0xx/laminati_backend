@@ -5,6 +5,7 @@ import pool from "../config/database.js";
 import {
   generateToken,
   verifyToken,
+  generateRealtimeToken,
   getSessionDurationLabelForRole,
 } from "../utils/jwt.js";
 import {
@@ -1429,6 +1430,57 @@ export const changePassword = async (
       message:
         "No fue posible actualizar la contraseña",
       code: "PASSWORD_UPDATE_ERROR",
+    });
+  }
+};
+
+/* =========================================
+   TOKEN EFÍMERO PARA SOCKET.IO
+
+   La sesión principal ya fue validada por
+   authenticate. Este token:
+   - sólo sirve para el handshake realtime;
+   - tiene una duración corta;
+   - no reemplaza la cookie HttpOnly;
+   - no se almacena en localStorage.
+========================================= */
+export const realtimeToken = async (
+  req,
+  res
+) => {
+  try {
+    const token =
+      generateRealtimeToken({
+        id: req.user.id,
+        role: req.user.role,
+      });
+
+    /*
+     * La respuesta contiene una credencial.
+     * Evitamos que navegadores, proxies o CDN
+     * puedan almacenarla.
+     */
+    res.set(
+      "Cache-Control",
+      "no-store"
+    );
+
+    return res.status(200).json({
+      success: true,
+      realtime_token: token,
+    });
+  } catch (error) {
+    console.error(
+      "Error generando token realtime:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible generar la credencial realtime",
+      code:
+        "REALTIME_TOKEN_GENERATION_ERROR",
     });
   }
 };

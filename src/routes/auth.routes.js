@@ -15,6 +15,7 @@ import {
   updateAvatar,
   deleteAvatar,
   changePassword,
+  realtimeToken,
   session,
   extendSession,
 } from "../controllers/auth.controller.js";
@@ -139,6 +140,12 @@ router.post(
   passwordChangeLimiter,
   authenticate,
   changePassword
+);
+
+router.post(
+  "/realtime-token",
+  authenticate,
+  realtimeToken
 );
 
 router.get(
