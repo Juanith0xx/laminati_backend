@@ -13,10 +13,13 @@ const configuredOrigins = new Set(
     .filter(Boolean)
 );
 
-const isDevelopment =
-  String(process.env.NODE_ENV || "development")
+const environment =
+  String(process.env.NODE_ENV || "")
     .trim()
-    .toLowerCase() !== "production";
+    .toLowerCase();
+
+const isDevelopment =
+  environment === "development";
 
 const isLocalDevelopmentOrigin = (origin) => {
   if (!isDevelopment) {
