@@ -1,5 +1,9 @@
 import pool from "../config/database.js";
 import { sendTransactionalEmail } from "../services/emailTransport.service.js";
+import {
+  createEmailBrandLogoAttachment,
+  renderEmailBrandLogo,
+} from "../utils/emailBranding.js";
 
 const VALID_STATUSES = new Set([
   "NEW",
@@ -163,10 +167,12 @@ const buildContactReplyEmail = ({
                     <td
                       style="padding:30px 32px 18px;"
                     >
+                      ${renderEmailBrandLogo({ width: 190 })}
+
                       <div
-                        style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#9ca3af;font-weight:700;"
+                        style="margin-top:18px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#9ca3af;font-weight:700;"
                       >
-                        Laminati · Contactos
+                        Contactos
                       </div>
 
                       <h1
@@ -228,8 +234,10 @@ const buildContactReplyEmail = ({
       </html>
     `,
 
-    attachments:
-      CONTACT_SIGNATURE_ATTACHMENTS,
+    attachments: [
+      createEmailBrandLogoAttachment(),
+      ...CONTACT_SIGNATURE_ATTACHMENTS,
+    ],
   };
 };
 

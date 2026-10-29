@@ -1,5 +1,10 @@
 import QRCode from "qrcode";
 
+import {
+  createEmailBrandLogoAttachment,
+  renderEmailBrandLogo,
+} from "../utils/emailBranding.js";
+
 const cleanText = (value) => String(value ?? "").trim();
 
 const escapeHtml = (value) =>
@@ -287,7 +292,7 @@ export const buildQuotationEmail = ({
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;">
             <tr>
               <td style="padding:34px 38px 10px 38px;">
-                <div style="font-size:25px;font-weight:700;letter-spacing:-0.4px;">Laminati</div>
+                ${renderEmailBrandLogo({ width: 190 })}
               </td>
             </tr>
 
@@ -416,8 +421,9 @@ export const buildQuotationEmail = ({
     subject,
     text,
     html,
-    attachments:
-      [],
+    attachments: [
+      createEmailBrandLogoAttachment(),
+    ],
   };
 };
 
@@ -473,7 +479,7 @@ export const buildDteAcceptedEmail = async ({
       <tr>
         <td align="center">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;">
-            <tr><td style="padding:34px 38px 10px 38px;"><div style="font-size:25px;font-weight:700;letter-spacing:-0.4px;">Laminati</div></td></tr>
+            <tr><td style="padding:34px 38px 10px 38px;">${renderEmailBrandLogo({ width: 190 })}</td></tr>
             <tr>
               <td style="padding:22px 38px 38px 38px;">
                 <div style="font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#777777;">Pago confirmado</div>
@@ -508,7 +514,9 @@ export const buildDteAcceptedEmail = async ({
     text,
     html,
     messageId: buildMessageId(row.id),
-    attachments: [],
+    attachments: [
+      createEmailBrandLogoAttachment(),
+    ],
   };
 };
 
@@ -572,7 +580,7 @@ export const buildReadyForPickupEmail = async ({
       <tr>
         <td align="center">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;">
-            <tr><td style="padding:34px 38px 10px 38px;"><div style="font-size:25px;font-weight:700;letter-spacing:-0.4px;">Laminati</div></td></tr>
+            <tr><td style="padding:34px 38px 10px 38px;">${renderEmailBrandLogo({ width: 190 })}</td></tr>
             <tr>
               <td style="padding:22px 38px 38px 38px;">
                 <div style="font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#777777;">Listo para retiro</div>
@@ -611,6 +619,7 @@ export const buildReadyForPickupEmail = async ({
     html,
     messageId: buildMessageId(row.id),
     attachments: [
+      createEmailBrandLogoAttachment(),
       {
         filename: `qr-retiro-${orderNumber}.png`,
         content: qrPng,
@@ -1146,7 +1155,7 @@ export const buildProjectQuotationItalyEmail =
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:780px;background:#ffffff;border-radius:18px;overflow:hidden;">
             <tr>
               <td style="padding:30px 32px 8px 32px;">
-                <div style="font-size:26px;font-weight:700;letter-spacing:-0.6px;">Laminati</div>
+                ${renderEmailBrandLogo({ width: 200 })}
               </td>
             </tr>
 
@@ -1309,6 +1318,9 @@ export const buildProjectQuotationItalyEmail =
         buildMessageId(
           row.id
         ),
+      attachments: [
+        createEmailBrandLogoAttachment(),
+      ],
     };
   };
 
