@@ -4138,9 +4138,12 @@ export const emailQuotation = async ({ quotationId }) => {
       messageId: `<quotation-${tracking.email_message_id}@laminatiword.local>`,
       /*
        * No adjuntamos el PDF.
-       * El cliente debe entrar por la URL trackeada para registrar VIEW.
+       * Conservamos únicamente los attachments inline
+       * definidos por la plantilla, como el logo CID.
        */
-      attachments: [],
+      attachments: Array.isArray(emailTemplate.attachments)
+        ? emailTemplate.attachments
+        : [],
     });
   } catch (error) {
     try {
