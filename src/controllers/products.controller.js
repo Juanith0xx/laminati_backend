@@ -1,6 +1,15 @@
 import pool from "../config/database.js";
 
 import {
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+
+import {
+  storageClient,
+  STORAGE_BUCKET,
+} from "../config/storage.js";
+
+import {
   resolveCustomerProductPrice,
 } from "../services/customerPricing.service.js";
 
@@ -158,6 +167,285 @@ const normalizeSearchText = (value) => {
 
     .replace(/\s+/g, " ");
 
+};
+
+
+/* =========================================
+   MEDIA PÚBLICA ESTABLE PARA SEO
+========================================= */
+
+const PRODUCT_IMAGE_VARIANTS = {
+  thumbnail: "thumbnail_key",
+  card: "card_key",
+  detail: "detail_key",
+};
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const getContentTypeFromKey = (key) => {
+  const normalized =
+    String(key || "").toLowerCase();
+
+  if (normalized.endsWith(".webp")) {
+    return "image/webp";
+  }
+
+  if (
+    normalized.endsWith(".jpg") ||
+    normalized.endsWith(".jpeg")
+  ) {
+    return "image/jpeg";
+  }
+
+  if (normalized.endsWith(".png")) {
+    return "image/png";
+  }
+
+  if (normalized.endsWith(".avif")) {
+    return "image/avif";
+  }
+
+  return "application/octet-stream";
+};
+
+/*
+ * Endpoint público y estable para imágenes SEO.
+ *
+ * La URL nunca contiene credenciales ni firma S3:
+ *   /api/products/media/:imageId/:variant
+ *
+ * Internamente se valida que la imagen pertenezca a un
+ * producto público antes de obtener el objeto privado de
+ * Railway Storage.
+ */
+export const getPublicProductImageMedia = async (
+  req,
+  res
+) => {
+  const imageId =
+    String(req.params.imageId || "").trim();
+
+  const variant =
+    String(req.params.variant || "")
+      .trim()
+      .toLowerCase();
+
+  if (!UUID_PATTERN.test(imageId)) {
+    return res.status(400).json({
+      success: false,
+      message: "ID de imagen inválido",
+    });
+  }
+
+  const keyColumn =
+    PRODUCT_IMAGE_VARIANTS[variant];
+
+  if (!keyColumn) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Variante de imagen inválida",
+      allowed_variants:
+        Object.keys(PRODUCT_IMAGE_VARIANTS),
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          pi.id,
+          pi.image_url,
+          pi.storage_provider,
+          pi.thumbnail_key,
+          pi.card_key,
+          pi.detail_key,
+          pi.updated_at,
+          p.id AS product_id,
+          p.slug AS product_slug
+        FROM product_images pi
+        INNER JOIN products p
+          ON p.id = pi.product_id
+        WHERE pi.id = $1
+          AND p.is_active = TRUE
+          AND p.is_published = TRUE
+          AND (
+            p.allow_sale = TRUE
+            OR p.commercial_mode = 'PROJECT_ONLY'
+          )
+        LIMIT 1
+      `,
+      [imageId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Imagen no encontrada",
+      });
+    }
+
+    const image = result.rows[0];
+
+    /*
+     * Compatibilidad con imágenes antiguas que ya
+     * poseen una URL pública externa estable.
+     */
+    if (
+      image.storage_provider !== "RAILWAY"
+    ) {
+      const legacyUrl =
+        String(image.image_url || "").trim();
+
+      if (!legacyUrl) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "La imagen no posee una fuente pública disponible",
+        });
+      }
+
+      return res.redirect(302, legacyUrl);
+    }
+
+    const storageKey = image[keyColumn];
+
+    if (!storageKey) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "La variante solicitada no existe para esta imagen",
+      });
+    }
+
+    const object =
+      await storageClient.send(
+        new GetObjectCommand({
+          Bucket: STORAGE_BUCKET,
+          Key: storageKey,
+        })
+      );
+
+    res.setHeader(
+      "Content-Type",
+      object.ContentType ||
+        getContentTypeFromKey(storageKey)
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      "inline"
+    );
+
+    if (object.ETag) {
+      res.setHeader("ETag", object.ETag);
+    }
+
+    if (object.LastModified) {
+      res.setHeader(
+        "Last-Modified",
+        new Date(
+          object.LastModified
+        ).toUTCString()
+      );
+    }
+
+    if (
+      Number.isFinite(
+        Number(object.ContentLength)
+      )
+    ) {
+      res.setHeader(
+        "Content-Length",
+        String(object.ContentLength)
+      );
+    }
+
+    if (req.method === "HEAD") {
+      if (
+        typeof object.Body?.destroy ===
+        "function"
+      ) {
+        object.Body.destroy();
+      }
+
+      return res.status(200).end();
+    }
+
+    if (
+      object.Body &&
+      typeof object.Body.pipe ===
+        "function"
+    ) {
+      object.Body.on("error", (streamError) => {
+        console.error(
+          "Error transmitiendo imagen pública de producto:",
+          streamError
+        );
+
+        if (!res.headersSent) {
+          res.status(500).end();
+        } else {
+          res.destroy(streamError);
+        }
+      });
+
+      return object.Body.pipe(res);
+    }
+
+    if (
+      object.Body &&
+      typeof object.Body.transformToByteArray ===
+        "function"
+    ) {
+      const bytes =
+        await object.Body.transformToByteArray();
+
+      return res.status(200).send(
+        Buffer.from(bytes)
+      );
+    }
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Railway Storage devolvió un cuerpo de imagen no compatible",
+    });
+  } catch (error) {
+    const notFound =
+      error?.name === "NoSuchKey" ||
+      error?.name === "NotFound" ||
+      error?.$metadata?.httpStatusCode === 404;
+
+    if (notFound) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "El archivo de imagen no existe en Storage",
+      });
+    }
+
+    console.error(
+      "Error obteniendo imagen pública estable:",
+      {
+        image_id: imageId,
+        variant,
+        error,
+      }
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "No fue posible obtener la imagen",
+    });
+  }
 };
 
 /* =========================================

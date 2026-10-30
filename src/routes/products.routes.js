@@ -5,6 +5,7 @@ import {
   getProductSearchSuggestions,
   getProductBySlug,
   getCustomerProductPrice,
+  getPublicProductImageMedia,
 } from "../controllers/products.controller.js";
 
 import {
@@ -22,6 +23,23 @@ router.get("/", getProducts);
 router.get(
   "/search/suggestions",
   getProductSearchSuggestions
+);
+
+/* =========================================
+   MEDIA PÚBLICA ESTABLE DE PRODUCTOS
+   - Sin JWT
+   - Solo imágenes de productos publicados
+   - Mantiene Railway Storage privado
+========================================= */
+
+router.get(
+  "/media/:imageId/:variant",
+  getPublicProductImageMedia
+);
+
+router.head(
+  "/media/:imageId/:variant",
+  getPublicProductImageMedia
 );
 
 /* =========================================
