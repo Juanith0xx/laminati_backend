@@ -510,97 +510,159 @@ const normalizeCustomerSnapshot = (body = {}) => {
   };
 };
 
+const PROJECT_RELBASE_NON_BLOCKING_ERROR_CODES =
+  new Set([
+    "RELBASE_CUSTOMER_TYPE_MISMATCH",
+    "RELBASE_CUSTOMER_TYPE_NOT_AVAILABLE",
+  ]);
+
 const synchronizeProjectCustomerWithRelbase =
   async ({
     customer,
     projectName,
   }) => {
-    const result =
-      await resolveRelbaseCustomerForTaxDocument({
-        document_type:
-          customer.intended_document_type,
-        customer_type:
-          customer.customer_type,
-        rut:
-          customer.rut,
-        legal_name:
-          customer.legal_name ||
-          customer.customer_name,
-        trade_name:
-          customer.trade_name ||
-          customer.customer_name,
-        business_activity:
-          customer.business_activity ||
-          (
-            customer.customer_type === "PERSON"
-              ? "Particular"
-              : ""
-          ),
-        email:
-          customer.email,
-        phone:
-          customer.phone,
-        address:
-          customer.address_line,
-        city:
-          customer.city || "",
-        commune:
-          customer.commune || "",
-        region:
-          customer.region || "",
-        country:
-          customer.country ||
-          "Chile",
-        order_number:
-          projectName
-            ? `Proyecto ${projectName}`
-            : "Cotización proyecto",
-        allow_generic_boleta: false,
-      });
+    try {
+      const result =
+        await resolveRelbaseCustomerForTaxDocument({
+          document_type:
+            customer.intended_document_type,
+          customer_type:
+            customer.customer_type,
+          rut:
+            customer.rut,
+          legal_name:
+            customer.legal_name ||
+            customer.customer_name,
+          trade_name:
+            customer.trade_name ||
+            customer.customer_name,
+          business_activity:
+            customer.business_activity ||
+            (
+              customer.customer_type === "PERSON"
+                ? "Particular"
+                : ""
+            ),
+          email:
+            customer.email,
+          phone:
+            customer.phone,
+          address:
+            customer.address_line,
+          city:
+            customer.city || "",
+          commune:
+            customer.commune || "",
+          region:
+            customer.region || "",
+          country:
+            customer.country ||
+            "Chile",
+          order_number:
+            projectName
+              ? `Proyecto ${projectName}`
+              : "Cotización proyecto",
+          allow_generic_boleta: false,
+        });
 
-    if (
-      !result?.resolved ||
-      !result?.customer_id
-    ) {
-      throw createServiceError(
-        "No fue posible vincular el cliente de proyecto con Relbase",
-        409,
-        "QUOTATION_PROJECT_RELBASE_CUSTOMER_REQUIRED"
+      if (
+        !result?.resolved ||
+        !result?.customer_id
+      ) {
+        throw createServiceError(
+          "No fue posible vincular el cliente de proyecto con Relbase",
+          409,
+          "QUOTATION_PROJECT_RELBASE_CUSTOMER_REQUIRED"
+        );
+      }
+
+      return {
+        customer: {
+          ...customer,
+          relbase_customer_id:
+            String(
+              result.customer_id
+            ),
+        },
+        sync: {
+          action:
+            result.created
+              ? "CREATED"
+              : result.updated
+                ? "UPDATED"
+                : "FOUND",
+          skipped: false,
+          reason: null,
+          created:
+            result.created === true,
+          updated:
+            result.updated === true,
+          changed_fields:
+            result.changed_fields || [],
+          relbase_customer_id:
+            String(
+              result.customer_id
+            ),
+          local_company_id:
+            result
+              .local_company
+              ?.id ||
+            null,
+        },
+      };
+    } catch (error) {
+      const errorCode =
+        String(
+          error?.code || ""
+        ).trim();
+
+      if (
+        !PROJECT_RELBASE_NON_BLOCKING_ERROR_CODES.has(
+          errorCode
+        )
+      ) {
+        throw error;
+      }
+
+      /*
+       * Una cotización PROJECT todavía no es un DTE.
+       * Si Relbase ya posee el RUT con un tipo distinto
+       * al snapshot de Laminatiword, permitimos guardar
+       * la cotización, pero NO vinculamos ese customer_id.
+       * La validación estricta seguirá ocurriendo cuando
+       * realmente corresponda preparar/emitir el DTE.
+       */
+      console.warn(
+        "Cotización PROJECT guardada sin vincular cliente Relbase por incompatibilidad de tipo",
+        {
+          code: errorCode,
+          rut: customer.rut || null,
+          expected_customer_type:
+            customer.customer_type || null,
+          intended_document_type:
+            customer.intended_document_type || null,
+          project_name:
+            projectName || null,
+        }
       );
-    }
 
-    return {
-      customer: {
-        ...customer,
-        relbase_customer_id:
-          String(
-            result.customer_id
-          ),
-      },
-      sync: {
-        action:
-          result.created
-            ? "CREATED"
-            : result.updated
-              ? "UPDATED"
-              : "FOUND",
-        created:
-          result.created === true,
-        updated:
-          result.updated === true,
-        changed_fields:
-          result.changed_fields || [],
-        relbase_customer_id:
-          String(
-            result.customer_id
-          ),
-        local_company_id:
-          result
-            .local_company
-            ?.id ||
-          null,
-      },
-    };
+      return {
+        customer: {
+          ...customer,
+          relbase_customer_id: null,
+        },
+        sync: {
+          action: "SKIPPED",
+          skipped: true,
+          reason: errorCode,
+          created: false,
+          updated: false,
+          changed_fields: [],
+          relbase_customer_id: null,
+          local_company_id: null,
+        },
+      };
+    }
   };
 
 const resolveValidUntil = (rawDays) => {
