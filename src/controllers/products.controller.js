@@ -261,7 +261,6 @@ export const getPublicProductImageMedia = async (
           pi.thumbnail_key,
           pi.card_key,
           pi.detail_key,
-          pi.updated_at,
           p.id AS product_id,
           p.slug AS product_slug
         FROM product_images pi
