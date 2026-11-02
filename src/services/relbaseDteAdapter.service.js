@@ -1876,7 +1876,7 @@ const validateTotals = (
 
   const net =
 
-    Math.round(
+    roundMoney(
 
       toNumber(
 
@@ -1892,7 +1892,7 @@ const validateTotals = (
 
   const exempt =
 
-    Math.round(
+    roundMoney(
 
       toNumber(
 
@@ -1908,7 +1908,7 @@ const validateTotals = (
 
   const tax =
 
-    Math.round(
+    roundMoney(
 
       toNumber(
 
@@ -1924,7 +1924,7 @@ const validateTotals = (
 
   const total =
 
-    Math.round(
+    roundMoney(
 
       toNumber(
 
@@ -1938,15 +1938,35 @@ const validateTotals = (
 
     );
 
+  const reconstructedTotal =
+
+    roundMoney(
+
+      net +
+
+        exempt +
+
+        tax
+
+    );
+
+  const difference =
+
+    roundMoney(
+
+      Math.abs(
+
+        reconstructedTotal -
+
+          total
+
+      )
+
+    );
+
   if (
 
-    net +
-
-      exempt +
-
-      tax !==
-
-    total
+    difference > 0.01
 
   ) {
 
@@ -1969,6 +1989,12 @@ const validateTotals = (
         tax,
 
         total,
+
+        reconstructed_total:
+
+          reconstructedTotal,
+
+        difference,
 
       },
 
