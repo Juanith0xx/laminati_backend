@@ -7714,11 +7714,16 @@ export const syncExistingRelbaseDteStatus =
           });
       }
 
-      const expectedMarker =
-        `Laminatiword ${String(
+      const orderNumber =
+        String(
           local.order_number ||
           ""
-        ).trim()}`;
+        ).trim();
+
+      const expectedMarker =
+        orderNumber
+          ? `Laminatiword ${orderNumber}`
+          : "";
 
       const detailMarkers =
         [
@@ -7734,12 +7739,16 @@ export const syncExistingRelbaseDteStatus =
           )
           .filter(Boolean);
 
-      if (
-        expectedMarker &&
-        !detailMarkers.includes(
+      const markerMatches =
+        !orderNumber ||
+        detailMarkers.includes(
           expectedMarker
-        )
-      ) {
+        ) ||
+        detailMarkers.includes(
+          orderNumber
+        );
+
+      if (!markerMatches) {
         return res
           .status(409)
           .json({
@@ -7751,6 +7760,8 @@ export const syncExistingRelbaseDteStatus =
             data: {
               expected_marker:
                 expectedMarker,
+              expected_label_value:
+                orderNumber,
               relbase_document_id:
                 relbaseDocumentId,
             },
