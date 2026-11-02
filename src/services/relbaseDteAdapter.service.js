@@ -1874,17 +1874,38 @@ const validateTotals = (
 
 ) => {
 
+  /*
+   * IMPORTANTE:
+   *
+   * totals.internal conserva la precisión monetaria
+   * real del snapshot (2 decimales).
+   *
+   * totals.clp representa los montos enteros del XML
+   * y puede producir diferencias artificiales de $1
+   * cuando neto, IVA y total se redondean por separado.
+   *
+   * Para validar consistencia contable antes de enviar
+   * a Relbase debemos usar los montos internos.
+   */
+  const totals =
+
+    preview.totals
+
+      ?.internal ||
+
+    preview.totals
+
+      ?.clp ||
+
+    {};
+
   const net =
 
     roundMoney(
 
       toNumber(
 
-        preview.totals
-
-          ?.clp
-
-          ?.net
+        totals.net
 
       )
 
@@ -1896,11 +1917,7 @@ const validateTotals = (
 
       toNumber(
 
-        preview.totals
-
-          ?.clp
-
-          ?.exempt
+        totals.exempt
 
       )
 
@@ -1912,11 +1929,7 @@ const validateTotals = (
 
       toNumber(
 
-        preview.totals
-
-          ?.clp
-
-          ?.tax
+        totals.tax
 
       )
 
@@ -1928,11 +1941,7 @@ const validateTotals = (
 
       toNumber(
 
-        preview.totals
-
-          ?.clp
-
-          ?.total
+        totals.total
 
       )
 
