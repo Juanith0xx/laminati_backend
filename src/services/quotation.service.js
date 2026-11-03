@@ -4191,10 +4191,38 @@ export const emailQuotation = async ({
   const sendToContact =
     body?.send_to_contact !== false;
 
-  const additionalEmail =
+  const rawAdditionalEmails =
+    Array.isArray(
+      body?.additional_emails
+    )
+      ? body.additional_emails
+      : [];
+
+  /*
+   * Compatibilidad hacia atrás:
+   * conserva soporte para el payload anterior
+   * { additional_email: "correo@empresa.cl" }.
+   */
+  const legacyAdditionalEmail =
     cleanText(
       body?.additional_email
     ).toLowerCase();
+
+  const additionalEmails = [
+    ...new Set(
+      [
+        ...rawAdditionalEmails,
+        legacyAdditionalEmail,
+      ]
+        .map(
+          (value) =>
+            cleanText(
+              value
+            ).toLowerCase()
+        )
+        .filter(Boolean)
+    ),
+  ];
 
   if (
     sendToContact &&
@@ -4209,20 +4237,23 @@ export const emailQuotation = async ({
     );
   }
 
-  if (
-    additionalEmail &&
-    (
-      additionalEmail.length > 254 ||
+  for (
+    const additionalEmail
+    of additionalEmails
+  ) {
+    if (
+      additionalEmail.length >
+        254 ||
       !isValidEmail(
         additionalEmail
       )
-    )
-  ) {
-    throw createServiceError(
-      "El correo adicional no es válido",
-      400,
-      "QUOTATION_ADDITIONAL_EMAIL_INVALID"
-    );
+    ) {
+      throw createServiceError(
+        `El correo adicional ${additionalEmail || "(vacío)"} no es válido`,
+        400,
+        "QUOTATION_ADDITIONAL_EMAIL_INVALID"
+      );
+    }
   }
 
   const recipients = [
@@ -4231,8 +4262,7 @@ export const emailQuotation = async ({
         sendToContact
           ? contactEmail
           : null,
-        additionalEmail ||
-          null,
+        ...additionalEmails,
       ].filter(Boolean)
     ),
   ];
@@ -4245,6 +4275,17 @@ export const emailQuotation = async ({
       "Selecciona al menos un destinatario válido para enviar la cotización",
       400,
       "QUOTATION_EMAIL_RECIPIENT_REQUIRED"
+    );
+  }
+
+  if (
+    recipients.length >
+    10
+  ) {
+    throw createServiceError(
+      "Puedes enviar la cotización a un máximo de 10 destinatarios por envío",
+      400,
+      "QUOTATION_EMAIL_RECIPIENT_LIMIT"
     );
   }
 
