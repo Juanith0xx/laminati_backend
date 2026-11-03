@@ -244,11 +244,22 @@ export const emailQuotationController = async (
   try {
     const result = await emailQuotation({
       quotationId: req.params.quotationId,
+      body: req.body || {},
     });
+
+    const sentCount =
+      Array.isArray(result?.emails)
+        ? result.emails.length
+        : 0;
 
     return res.status(200).json({
       success: true,
-      message: "Cotización enviada por correo correctamente",
+      message:
+        result?.partial === true
+          ? `Cotización enviada a ${sentCount} destinatario${sentCount === 1 ? "" : "s"}, con al menos un envío pendiente o fallido`
+          : sentCount > 1
+            ? `Cotización enviada correctamente a ${sentCount} destinatarios`
+            : "Cotización enviada por correo correctamente",
       data: result,
     });
   } catch (error) {

@@ -4158,7 +4158,10 @@ export const getQuotationPdf = async ({ quotationId }) => {
   };
 };
 
-export const emailQuotation = async ({ quotationId }) => {
+export const emailQuotation = async ({
+  quotationId,
+  body = {},
+}) => {
   const {
     quotation,
     items,
@@ -4168,7 +4171,11 @@ export const emailQuotation = async ({ quotationId }) => {
       quotationId,
     });
 
-  if (["EXPIRED", "CANCELLED", "CONVERTED"].includes(quotation.status)) {
+  if (
+    ["EXPIRED", "CANCELLED", "CONVERTED"].includes(
+      quotation.status
+    )
+  ) {
     throw createServiceError(
       `No es posible enviar una cotización en estado ${quotation.status}`,
       409,
@@ -4176,94 +4183,248 @@ export const emailQuotation = async ({ quotationId }) => {
     );
   }
 
+  const contactEmail =
+    cleanText(
+      quotation.email
+    ).toLowerCase();
+
+  const sendToContact =
+    body?.send_to_contact !== false;
+
+  const additionalEmail =
+    cleanText(
+      body?.additional_email
+    ).toLowerCase();
+
+  if (
+    sendToContact &&
+    !isValidEmail(
+      contactEmail
+    )
+  ) {
+    throw createServiceError(
+      "El correo de contacto de la cotización no es válido",
+      409,
+      "QUOTATION_CONTACT_EMAIL_INVALID"
+    );
+  }
+
+  if (
+    additionalEmail &&
+    (
+      additionalEmail.length > 254 ||
+      !isValidEmail(
+        additionalEmail
+      )
+    )
+  ) {
+    throw createServiceError(
+      "El correo adicional no es válido",
+      400,
+      "QUOTATION_ADDITIONAL_EMAIL_INVALID"
+    );
+  }
+
+  const recipients = [
+    ...new Set(
+      [
+        sendToContact
+          ? contactEmail
+          : null,
+        additionalEmail ||
+          null,
+      ].filter(Boolean)
+    ),
+  ];
+
+  if (
+    recipients.length ===
+    0
+  ) {
+    throw createServiceError(
+      "Selecciona al menos un destinatario válido para enviar la cotización",
+      400,
+      "QUOTATION_EMAIL_RECIPIENT_REQUIRED"
+    );
+  }
+
   const subject =
     `Cotización ${quotation.quote_number} · Laminati`;
 
-  const tracking = await createQuotationTracking({
-    quotationId: quotation.id,
-    recipientEmail: quotation.email,
-    subject,
-  });
+  const deliveries = [];
+  const failures = [];
 
-  let info;
+  for (
+    const recipientEmail
+    of recipients
+  ) {
+    let tracking = null;
 
-  try {
-    const emailTemplate = buildQuotationEmail({
-      quotation,
-      to: quotation.email,
-      quotationUrl: tracking.quotation_url,
-      openPixelUrl: tracking.open_pixel_url,
-    });
-
-    info = await sendTransactionalEmail({
-      ...emailTemplate,
-      messageId: `<quotation-${tracking.email_message_id}@laminatiword.local>`,
-      /*
-       * No adjuntamos el PDF.
-       * Conservamos únicamente los attachments inline
-       * definidos por la plantilla, como el logo CID.
-       */
-      attachments: Array.isArray(emailTemplate.attachments)
-        ? emailTemplate.attachments
-        : [],
-    });
-  } catch (error) {
     try {
-      await markQuotationEmailFailed({
-        emailMessageId: tracking.email_message_id,
-        error,
-      });
-    } catch (trackingError) {
-      console.error(
-        "Error registrando fallo de email de cotización:",
-        trackingError
-      );
-    }
+      tracking =
+        await createQuotationTracking({
+          quotationId:
+            quotation.id,
+          recipientEmail,
+          subject,
+        });
 
-    throw error;
+      const emailTemplate =
+        buildQuotationEmail({
+          quotation,
+          to:
+            recipientEmail,
+          quotationUrl:
+            tracking.quotation_url,
+          openPixelUrl:
+            tracking.open_pixel_url,
+        });
+
+      const info =
+        await sendTransactionalEmail({
+          ...emailTemplate,
+          messageId:
+            `<quotation-${tracking.email_message_id}@laminatiword.local>`,
+          /*
+           * No adjuntamos el PDF.
+           * Conservamos únicamente los attachments inline
+           * definidos por la plantilla, como el logo CID.
+           */
+          attachments:
+            Array.isArray(
+              emailTemplate.attachments
+            )
+              ? emailTemplate.attachments
+              : [],
+        });
+
+      await markQuotationEmailSent({
+        emailMessageId:
+          tracking.email_message_id,
+        providerMessageId:
+          info.message_id,
+        providerResponse:
+          info,
+      });
+
+      deliveries.push({
+        email:
+          recipientEmail,
+        provider:
+          info,
+        tracking: {
+          email_message_id:
+            tracking.email_message_id,
+          access_token_id:
+            tracking.access_token_id,
+          ...(String(
+            process.env.NODE_ENV ||
+              ""
+          )
+            .trim()
+            .toLowerCase() !==
+          "production"
+            ? {
+                quotation_url:
+                  tracking.quotation_url,
+                open_pixel_url:
+                  tracking.open_pixel_url,
+              }
+            : {}),
+        },
+      });
+    } catch (error) {
+      if (
+        tracking?.email_message_id
+      ) {
+        try {
+          await markQuotationEmailFailed({
+            emailMessageId:
+              tracking.email_message_id,
+            error,
+          });
+        } catch (
+          trackingError
+        ) {
+          console.error(
+            "Error registrando fallo de email de cotización:",
+            trackingError
+          );
+        }
+      }
+
+      failures.push({
+        email:
+          recipientEmail,
+        message:
+          String(
+            error?.message ||
+              "No fue posible enviar el correo"
+          ).slice(
+            0,
+            500
+          ),
+      });
+    }
   }
 
-  await markQuotationEmailSent({
-    emailMessageId: tracking.email_message_id,
-    providerMessageId: info.message_id,
-    providerResponse: info,
-  });
+  if (
+    deliveries.length >
+    0
+  ) {
+    await pool.query(
+      `
+        UPDATE quotations
+        SET
+          status = CASE
+            WHEN status = 'DRAFT' THEN 'SENT'
+            ELSE status
+          END,
+          sent_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [
+        quotation.id,
+      ]
+    );
+  }
 
-  await pool.query(
-    `
-      UPDATE quotations
-      SET
-        status = CASE
-          WHEN status = 'DRAFT' THEN 'SENT'
-          ELSE status
-        END,
-        sent_at = NOW(),
-        updated_at = NOW()
-      WHERE id = $1
-    `,
-    [quotation.id]
-  );
+  if (
+    deliveries.length ===
+    0
+  ) {
+    throw createServiceError(
+      failures[0]?.message ||
+        "No fue posible enviar la cotización a los destinatarios seleccionados",
+      502,
+      "QUOTATION_EMAIL_DELIVERY_FAILED"
+    );
+  }
 
   return {
     sent: true,
-    email: quotation.email,
-    provider: info,
-    tracking: {
-      email_message_id: tracking.email_message_id,
-      access_token_id: tracking.access_token_id,
-      ...(String(process.env.NODE_ENV || "")
-        .trim()
-        .toLowerCase() !== "production"
-        ? {
-            quotation_url: tracking.quotation_url,
-            open_pixel_url: tracking.open_pixel_url,
-          }
-        : {}),
-    },
+    partial:
+      failures.length > 0,
+    email:
+      deliveries[0]?.email ||
+      null,
+    emails:
+      deliveries.map(
+        (delivery) =>
+          delivery.email
+      ),
+    recipients_requested:
+      recipients,
+    deliveries,
+    failures,
     quotation: {
       ...quotation,
       status:
-        quotation.status === "DRAFT" ? "SENT" : quotation.status,
+        quotation.status ===
+        "DRAFT"
+          ? "SENT"
+          : quotation.status,
     },
     items,
     project_lines:
