@@ -62,6 +62,10 @@ import gerenciaRoutes from "./routes/gerencia.routes.js";
 
 import projectBoardRoutes from "./routes/projectBoard.routes.js";
 
+import analyticsRoutes from "./routes/analytics.routes.js";
+
+import adminAnalyticsRoutes from "./routes/adminAnalytics.routes.js";
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -107,6 +111,22 @@ app.use(
 
 app.use(
   morgan("dev")
+);
+
+
+/* =========================================
+   ANALYTICS · INGESTA SERVER-TO-SERVER
+
+   IMPORTANTE:
+   - Se monta ANTES del rate limit general.
+   - Vercel enviará estos eventos usando
+     ANALYTICS_INGEST_SECRET.
+   - No expone consultas administrativas.
+========================================= */
+
+app.use(
+  "/api/analytics",
+  analyticsRoutes
 );
 
 
@@ -256,6 +276,12 @@ app.use("/api/admin/pos", posRoutes);
 
 // Dashboard comercial: GET de sólo lectura, protegido para ADMIN.
 app.use("/api/admin/dashboard", dashboardRoutes);
+
+// Analytics comercial: consultas de sólo lectura, protegidas para ADMIN.
+app.use(
+  "/api/admin/analytics",
+  adminAnalyticsRoutes
+);
 
 // Listado y detalle administrativo de órdenes WEB/STORE (sólo GET).
 app.use("/api/admin/order-management", orderManagementRoutes);
