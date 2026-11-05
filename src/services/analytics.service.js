@@ -85,6 +85,13 @@ const normalizeDays = (value, fallback = 30) => {
   return Math.min(days, 365);
 };
 
+// Tope de sesiones nuevas por origen y ventana, transaccional en PostgreSQL.
+// Se aplica solo si Vercel puede enviar una huella diaria HMAC anónima.
+const SESSION_WINDOW_LIMIT = Math.min(
+  Math.max(Number(process.env.ANALYTICS_MAX_NEW_SESSIONS_PER_10_MIN) || 40, 5),
+  10000
+);
+
 export const createAnalyticsEvent = async (payload = {}) => {
   const sessionKey = cleanText(payload.session_key, 100);
   const eventType = cleanText(payload.event_type, 50)?.toUpperCase();
@@ -130,10 +137,42 @@ export const createAnalyticsEvent = async (payload = {}) => {
     metadata: normalizeMetadata(payload.metadata),
   };
 
+  const visitorHash = cleanText(payload.visitor_hash, 64);
+  const validVisitorHash =
+    visitorHash && /^[a-f0-9]{64}$/i.test(visitorHash) ? visitorHash : null;
+
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+
+    // Solo contamos sesiones nuevas, no cada evento de una sesión existente.
+    // La tabla de límite evita que nuevas sesiones masivas inflen el dashboard.
+    if (validVisitorHash) {
+      const existing = await client.query(
+        "SELECT id FROM analytics_sessions WHERE session_key = $1",
+        [sessionKey]
+      );
+      if (existing.rowCount === 0) {
+        const quota = await client.query(
+          `INSERT INTO analytics_ingest_limits (
+             visitor_hash, window_start, new_sessions, updated_at
+           ) VALUES (
+             $1, to_timestamp(floor(extract(epoch from now()) / 600) * 600), 1, now()
+           )
+           ON CONFLICT (visitor_hash, window_start)
+           DO UPDATE SET new_sessions = analytics_ingest_limits.new_sessions + 1,
+                         updated_at = now()
+           WHERE analytics_ingest_limits.new_sessions < $2
+           RETURNING new_sessions`,
+          [validVisitorHash, SESSION_WINDOW_LIMIT]
+        );
+        if (quota.rowCount === 0) {
+          await client.query("ROLLBACK");
+          return { filtered: true, reason: "new_session_rate_limit" };
+        }
+      }
+    }
 
     const sessionResult = await client.query(
       `
@@ -265,10 +304,9 @@ export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
           COUNT(e.id) FILTER (WHERE e.event_type = 'CHECKOUT_START')::int AS checkout_starts,
           COUNT(e.id) FILTER (WHERE e.event_type = 'ORDER_CREATED')::int AS orders_created
         FROM analytics_sessions s
-        LEFT JOIN analytics_events e
+        JOIN analytics_events e
           ON e.session_id = s.id
-         AND e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
-        WHERE s.first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
+        WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
       `,
       [periodDays]
     ),

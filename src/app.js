@@ -66,6 +66,8 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 
 import adminAnalyticsRoutes from "./routes/adminAnalytics.routes.js";
 
+import bathroomProjectRoutes from "./routes/bathroomProject.routes.js";
+
 const app = express();
 
 app.disable("x-powered-by");
@@ -271,6 +273,8 @@ app.use(
   "/api/admin/project-board",
   projectBoardRoutes
 );
+
+app.use("/api/bathroom-projects", bathroomProjectRoutes);
 
 app.use("/api/admin/pos", posRoutes);
 

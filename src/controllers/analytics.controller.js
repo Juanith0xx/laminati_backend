@@ -13,6 +13,14 @@ export const createAnalyticsEventController = async (req, res, next) => {
   try {
     const result = await createAnalyticsEvent(req.body);
 
+    if (result?.filtered) {
+      return res.status(202).json({
+        success: true,
+        filtered: true,
+        reason: result.reason,
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: "Evento de analytics registrado correctamente",

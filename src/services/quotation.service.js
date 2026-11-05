@@ -789,6 +789,265 @@ const getQuotationProjectLines =
   };
 
 
+/* =========================================
+   SNAPSHOT OPTIMIZACIÓN BAÑOS
+   - Persiste configuración + resultado técnico.
+   - No interviene en el cálculo comercial.
+   - Permite regenerar el PDF con el mismo despiece.
+========================================= */
+const normalizeBathroomOptimizationSnapshot =
+  (value) => {
+    if (
+      value === undefined ||
+      value === null
+    ) {
+      return null;
+    }
+
+    if (
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      throw createServiceError(
+        "El snapshot de optimización de baños no es válido",
+        400,
+        "QUOTATION_BATHROOM_OPTIMIZATION_INVALID"
+      );
+    }
+
+    const optimization =
+      value.optimization ||
+      value.data ||
+      null;
+
+    if (
+      !optimization ||
+      typeof optimization !== "object" ||
+      Array.isArray(optimization)
+    ) {
+      throw createServiceError(
+        "Falta el resultado del optimizador de baños",
+        400,
+        "QUOTATION_BATHROOM_OPTIMIZATION_RESULT_REQUIRED"
+      );
+    }
+
+    const optimizerVersion =
+      cleanText(
+        optimization.optimizerVersion ||
+        value.optimizer_version
+      );
+
+    if (!optimizerVersion) {
+      throw createServiceError(
+        "El optimizador no informó su versión",
+        400,
+        "QUOTATION_BATHROOM_OPTIMIZER_VERSION_REQUIRED"
+      );
+    }
+
+    if (
+      !optimization.totals ||
+      !Array.isArray(
+        optimization.materials
+      )
+    ) {
+      throw createServiceError(
+        "La estructura de optimización de baños está incompleta",
+        400,
+        "QUOTATION_BATHROOM_OPTIMIZATION_STRUCTURE_INVALID"
+      );
+    }
+
+    const snapshot = {
+      optimizer_version:
+        optimizerVersion,
+      kerf_model:
+        optionalText(
+          optimization.kerfModel ||
+          value.kerf_model
+        ),
+      configuration:
+        value.configuration &&
+        typeof value.configuration === "object" &&
+        !Array.isArray(value.configuration)
+          ? value.configuration
+          : {},
+      optimization,
+    };
+
+    const serialized =
+      JSON.stringify(snapshot);
+
+    if (
+      Buffer.byteLength(
+        serialized,
+        "utf8"
+      ) >
+      2 * 1024 * 1024
+    ) {
+      throw createServiceError(
+        "El despiece optimizado supera el tamaño máximo permitido",
+        413,
+        "QUOTATION_BATHROOM_OPTIMIZATION_TOO_LARGE"
+      );
+    }
+
+    return snapshot;
+  };
+
+const upsertQuotationBathroomOptimization =
+  async ({
+    quotationId,
+    snapshot,
+    client = pool,
+  }) => {
+    if (!snapshot) {
+      return null;
+    }
+
+    const result =
+      await client.query(
+        `
+          INSERT INTO quotation_bathroom_optimizations (
+            quotation_id,
+            optimizer_version,
+            kerf_model,
+            configuration_json,
+            optimization_json,
+            updated_at
+          )
+          VALUES (
+            $1::uuid,
+            $2,
+            $3,
+            $4::jsonb,
+            $5::jsonb,
+            NOW()
+          )
+          ON CONFLICT (quotation_id)
+          DO UPDATE SET
+            optimizer_version = EXCLUDED.optimizer_version,
+            kerf_model = EXCLUDED.kerf_model,
+            configuration_json = EXCLUDED.configuration_json,
+            optimization_json = EXCLUDED.optimization_json,
+            updated_at = NOW()
+          RETURNING
+            id,
+            quotation_id,
+            optimizer_version,
+            kerf_model,
+            configuration_json,
+            optimization_json,
+            created_at,
+            updated_at
+        `,
+        [
+          quotationId,
+          snapshot.optimizer_version,
+          snapshot.kerf_model,
+          JSON.stringify(
+            snapshot.configuration || {}
+          ),
+          JSON.stringify(
+            snapshot.optimization
+          ),
+        ]
+      );
+
+    const row =
+      result.rows[0];
+
+    return row
+      ? {
+          id:
+            row.id,
+          quotation_id:
+            row.quotation_id,
+          optimizer_version:
+            row.optimizer_version,
+          kerf_model:
+            row.kerf_model,
+          configuration:
+            row.configuration_json || {},
+          optimization:
+            row.optimization_json,
+          created_at:
+            row.created_at,
+          updated_at:
+            row.updated_at,
+        }
+      : null;
+  };
+
+const deleteQuotationBathroomOptimization =
+  async (
+    quotationId,
+    client = pool
+  ) => {
+    await client.query(
+      `
+        DELETE FROM quotation_bathroom_optimizations
+        WHERE quotation_id = $1::uuid
+      `,
+      [quotationId]
+    );
+  };
+
+const getQuotationBathroomOptimization =
+  async (
+    quotationId,
+    client = pool
+  ) => {
+    const result =
+      await client.query(
+        `
+          SELECT
+            id,
+            quotation_id,
+            optimizer_version,
+            kerf_model,
+            configuration_json,
+            optimization_json,
+            created_at,
+            updated_at
+          FROM quotation_bathroom_optimizations
+          WHERE quotation_id = $1::uuid
+          LIMIT 1
+        `,
+        [quotationId]
+      );
+
+    if (
+      result.rowCount === 0
+    ) {
+      return null;
+    }
+
+    const row =
+      result.rows[0];
+
+    return {
+      id:
+        row.id,
+      quotation_id:
+        row.quotation_id,
+      optimizer_version:
+        row.optimizer_version,
+      kerf_model:
+        row.kerf_model,
+      configuration:
+        row.configuration_json || {},
+      optimization:
+        row.optimization_json,
+      created_at:
+        row.created_at,
+      updated_at:
+        row.updated_at,
+    };
+  };
+
+
 const normalizeProjectLines =
   (lines) => {
     if (
@@ -1701,11 +1960,20 @@ export const getQuotationById = async ({ quotationId }) => {
         )
       : [];
 
+  const bathroomOptimization =
+    isProject
+      ? await getQuotationBathroomOptimization(
+          id
+        )
+      : null;
+
   return {
     quotation,
     items,
     project_lines:
       projectLines,
+    bathroom_optimization:
+      bathroomOptimization,
   };
 };
 
@@ -2841,6 +3109,12 @@ export const createProjectQuotation =
           .notes
       );
 
+    const bathroomOptimization =
+      normalizeBathroomOptimizationSnapshot(
+        payload
+          .bathroom_optimization
+      );
+
     const requestedLines =
       normalizeProjectLines(
         payload.lines
@@ -3032,6 +3306,17 @@ export const createProjectQuotation =
           client,
         });
 
+      const persistedBathroomOptimization =
+        bathroomOptimization
+          ? await upsertQuotationBathroomOptimization({
+              quotationId:
+                quotation.id,
+              snapshot:
+                bathroomOptimization,
+              client,
+            })
+          : null;
+
       let italyEmailNotifications = {
         skipped: true,
         reason:
@@ -3101,6 +3386,8 @@ export const createProjectQuotation =
         items: [],
         project_lines:
           projectLines,
+        bathroom_optimization:
+          persistedBathroomOptimization,
         relbase_customer_sync:
           customerSynchronization.sync,
         italy_email_notifications:
@@ -3172,6 +3459,20 @@ export const updateProjectQuotation =
         payload
           .notes
       );
+
+    const hasBathroomOptimizationField =
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "bathroom_optimization"
+      );
+
+    const bathroomOptimization =
+      hasBathroomOptimizationField
+        ? normalizeBathroomOptimizationSnapshot(
+            payload
+              .bathroom_optimization
+          )
+        : undefined;
 
     const requestedLines =
       normalizeProjectLines(
@@ -3616,6 +3917,35 @@ export const updateProjectQuotation =
           client,
         });
 
+      let persistedBathroomOptimization =
+        await getQuotationBathroomOptimization(
+          id,
+          client
+        );
+
+      if (
+        hasBathroomOptimizationField
+      ) {
+        if (bathroomOptimization) {
+          persistedBathroomOptimization =
+            await upsertQuotationBathroomOptimization({
+              quotationId:
+                id,
+              snapshot:
+                bathroomOptimization,
+              client,
+            });
+        } else {
+          await deleteQuotationBathroomOptimization(
+            id,
+            client
+          );
+
+          persistedBathroomOptimization =
+            null;
+        }
+      }
+
       const becameVisibleToItaly =
         visibleToItaly ===
           true &&
@@ -3701,6 +4031,9 @@ export const updateProjectQuotation =
 
         project_lines:
           projectLines,
+
+        bathroom_optimization:
+          persistedBathroomOptimization,
 
         edited:
           true,

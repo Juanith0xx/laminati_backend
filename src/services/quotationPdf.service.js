@@ -1767,10 +1767,1048 @@ const drawProjectTermsBlock = ({
 };
 
 
+
+/* =========================================
+   ANEXO TÉCNICO · BAÑOS
+   Mantiene intacta la cotización comercial
+   y agrega el despiece desde la página 3.
+========================================= */
+const safePdfNumber = (
+  value,
+  fallback = 0
+) => {
+  const number =
+    Number(value);
+
+  return Number.isFinite(number)
+    ? number
+    : fallback;
+};
+
+const getBathroomOptimizationData =
+  (snapshot) => {
+    if (
+      !snapshot ||
+      typeof snapshot !== "object"
+    ) {
+      return null;
+    }
+
+    const optimization =
+      snapshot.optimization ||
+      snapshot.optimization_json ||
+      snapshot.data ||
+      null;
+
+    if (
+      !optimization ||
+      typeof optimization !== "object"
+    ) {
+      return null;
+    }
+
+    return optimization;
+  };
+
+const getBathroomPieceType =
+  (piece) =>
+    cleanText(
+      piece?.type ||
+      piece?.partType ||
+      piece?.kind ||
+      piece?.pieceType ||
+      piece?.label ||
+      piece?.name ||
+      "Pieza"
+    ) || "Pieza";
+
+const getBathroomPieceMaterial =
+  (piece) =>
+    cleanText(
+      piece?.materialCode ||
+      piece?.material_code ||
+      piece?.material?.code ||
+      piece?.material ||
+      "—"
+    ) || "—";
+
+const aggregateBathroomPieces =
+  (pieces = []) => {
+    const grouped =
+      new Map();
+
+    for (
+      const piece
+      of Array.isArray(pieces)
+        ? pieces
+        : []
+    ) {
+      const type =
+        getBathroomPieceType(
+          piece
+        );
+
+      const material =
+        getBathroomPieceMaterial(
+          piece
+        );
+
+      const width =
+        safePdfNumber(
+          piece?.width,
+          0
+        );
+
+      const height =
+        safePdfNumber(
+          piece?.height,
+          0
+        );
+
+      const key =
+        [
+          type,
+          material,
+          width,
+          height,
+        ].join("|");
+
+      const current =
+        grouped.get(key) || {
+          type,
+          material,
+          width,
+          height,
+          quantity: 0,
+        };
+
+      current.quantity += 1;
+
+      grouped.set(
+        key,
+        current
+      );
+    }
+
+    return [
+      ...grouped.values(),
+    ].sort(
+      (a, b) =>
+        a.material.localeCompare(
+          b.material
+        ) ||
+        a.type.localeCompare(
+          b.type
+        ) ||
+        b.width - a.width ||
+        b.height - a.height
+    );
+  };
+
+const drawBathroomMetricCard = ({
+  doc,
+  x,
+  y,
+  width,
+  label,
+  value,
+}) => {
+  doc
+    .roundedRect(
+      x,
+      y,
+      width,
+      55,
+      3
+    )
+    .fillColor(
+      "#f6f6f6"
+    )
+    .fill();
+
+  doc
+    .font(
+      "Helvetica"
+    )
+    .fontSize(
+      5.8
+    )
+    .fillColor(
+      "#888888"
+    )
+    .text(
+      String(label || "")
+        .toUpperCase(),
+      x + 10,
+      y + 10,
+      {
+        width:
+          width - 20,
+      }
+    );
+
+  doc
+    .font(
+      "Helvetica-Bold"
+    )
+    .fontSize(
+      15
+    )
+    .fillColor(
+      "#111111"
+    )
+    .text(
+      String(value ?? "—"),
+      x + 10,
+      y + 26,
+      {
+        width:
+          width - 20,
+      }
+    );
+};
+
+const drawBathroomMaterialSummary = ({
+  doc,
+  materials,
+  y,
+}) => {
+  const x = 34;
+  const width = 527;
+  const columns = [
+    {
+      label: "MATERIAL",
+      x,
+      width: 170,
+      align: "left",
+    },
+    {
+      label: "ESPESOR",
+      x: x + 170,
+      width: 75,
+      align: "right",
+    },
+    {
+      label: "PLACAS",
+      x: x + 245,
+      width: 70,
+      align: "right",
+    },
+    {
+      label: "APROV.",
+      x: x + 315,
+      width: 95,
+      align: "right",
+    },
+    {
+      label: "DESPERDICIO",
+      x: x + 410,
+      width: 117,
+      align: "right",
+    },
+  ];
+
+  doc
+    .rect(
+      x,
+      y,
+      width,
+      25
+    )
+    .fillColor(
+      "#111111"
+    )
+    .fill();
+
+  for (
+    const column
+    of columns
+  ) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(5.5)
+      .fillColor("#ffffff")
+      .text(
+        column.label,
+        column.x + 5,
+        y + 8,
+        {
+          width:
+            column.width - 10,
+          align:
+            column.align,
+        }
+      );
+  }
+
+  let rowY =
+    y + 25;
+
+  for (
+    const group
+    of materials
+  ) {
+    const material =
+      group?.material || {};
+
+    const metrics =
+      group?.optimization
+        ?.metrics || {};
+
+    const values = [
+      cleanText(
+        material.code ||
+        material.label
+      ) || "—",
+      material.thickness !== undefined &&
+      material.thickness !== null
+        ? `${formatNumber(
+            material.thickness
+          )} mm`
+        : "—",
+      formatNumber(
+        metrics.sheetsRequired || 0
+      ),
+      `${formatNumber(
+        metrics.utilization || 0,
+        2
+      )}%`,
+      `${formatNumber(
+        metrics.wastePercentage || 0,
+        2
+      )}%`,
+    ];
+
+    const rowHeight =
+      25;
+
+    doc
+      .rect(
+        x,
+        rowY,
+        width,
+        rowHeight
+      )
+      .fillColor("#ffffff")
+      .fill()
+      .strokeColor("#dddddd")
+      .lineWidth(0.5)
+      .stroke();
+
+    columns.forEach(
+      (
+        column,
+        index
+      ) => {
+        doc
+          .font(
+            index === 0
+              ? "Helvetica-Bold"
+              : "Helvetica"
+          )
+          .fontSize(6.2)
+          .fillColor("#222222")
+          .text(
+            values[index],
+            column.x + 5,
+            rowY + 8,
+            {
+              width:
+                column.width - 10,
+              align:
+                column.align,
+            }
+          );
+      }
+    );
+
+    rowY +=
+      rowHeight;
+  }
+
+  return rowY;
+};
+
+const drawBathroomPiecesTable = ({
+  doc,
+  pieces,
+  quotation,
+  y,
+}) => {
+  const rows =
+    aggregateBathroomPieces(
+      pieces
+    );
+
+  let currentY = y;
+
+  const drawHeader = () => {
+    currentY =
+      drawProjectSectionTitle({
+        doc,
+        title:
+          "Despiece calculado",
+        y:
+          currentY,
+      });
+
+    doc
+      .rect(
+        34,
+        currentY,
+        527,
+        25
+      )
+      .fillColor("#111111")
+      .fill();
+
+    const headerColumns = [
+      ["PIEZA", 34, 165, "left"],
+      ["MATERIAL", 199, 145, "left"],
+      ["MEDIDA", 344, 135, "right"],
+      ["CANT.", 479, 82, "right"],
+    ];
+
+    for (
+      const [
+        label,
+        x,
+        width,
+        align,
+      ]
+      of headerColumns
+    ) {
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(5.5)
+        .fillColor("#ffffff")
+        .text(
+          label,
+          x + 5,
+          currentY + 8,
+          {
+            width:
+              width - 10,
+            align,
+          }
+        );
+    }
+
+    currentY += 25;
+  };
+
+  drawHeader();
+
+  if (
+    rows.length === 0
+  ) {
+    doc
+      .font("Helvetica")
+      .fontSize(7)
+      .fillColor("#777777")
+      .text(
+        "El optimizador no informó piezas individuales.",
+        34,
+        currentY + 10
+      );
+
+    return currentY + 35;
+  }
+
+  for (
+    const row
+    of rows
+  ) {
+    if (
+      currentY > 675
+    ) {
+      doc.addPage({
+        size: "A4",
+        margin: 0,
+      });
+
+      currentY =
+        drawProjectDocumentHeader({
+          doc,
+          quotation,
+          compact: true,
+        });
+
+      drawHeader();
+    }
+
+    doc
+      .rect(
+        34,
+        currentY,
+        527,
+        24
+      )
+      .fillColor("#ffffff")
+      .fill()
+      .strokeColor("#dddddd")
+      .lineWidth(0.5)
+      .stroke();
+
+    const values = [
+      row.type,
+      row.material,
+      `${formatNumber(
+        row.width
+      )} × ${formatNumber(
+        row.height
+      )} mm`,
+      formatNumber(
+        row.quantity
+      ),
+    ];
+
+    const cells = [
+      [34, 165, "left"],
+      [199, 145, "left"],
+      [344, 135, "right"],
+      [479, 82, "right"],
+    ];
+
+    cells.forEach(
+      (
+        [x, width, align],
+        index
+      ) => {
+        doc
+          .font(
+            index === 0
+              ? "Helvetica-Bold"
+              : "Helvetica"
+          )
+          .fontSize(6.1)
+          .fillColor("#222222")
+          .text(
+            values[index],
+            x + 5,
+            currentY + 7,
+            {
+              width:
+                width - 10,
+              align,
+            }
+          );
+      }
+    );
+
+    currentY += 24;
+  }
+
+  return currentY;
+};
+
+const drawBathroomSheetCard = ({
+  doc,
+  x,
+  y,
+  width,
+  height,
+  sheet,
+  sheetIndex,
+  material,
+}) => {
+  doc
+    .roundedRect(
+      x,
+      y,
+      width,
+      height,
+      3
+    )
+    .fillColor("#fafafa")
+    .fill()
+    .strokeColor("#dddddd")
+    .lineWidth(0.6)
+    .stroke();
+
+  const sheetWidth =
+    safePdfNumber(
+      material?.sheetWidth,
+      1220
+    );
+
+  const sheetHeight =
+    safePdfNumber(
+      material?.sheetHeight,
+      3050
+    );
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(6.6)
+    .fillColor("#111111")
+    .text(
+      `PLACA ${sheetIndex + 1}`,
+      x + 10,
+      y + 10,
+      {
+        width:
+          width - 20,
+      }
+    );
+
+  doc
+    .font("Helvetica")
+    .fontSize(5.6)
+    .fillColor("#888888")
+    .text(
+      `${formatNumber(
+        sheetWidth
+      )} × ${formatNumber(
+        sheetHeight
+      )} mm`,
+      x + 10,
+      y + 10,
+      {
+        width:
+          width - 20,
+        align: "right",
+      }
+    );
+
+  const maxDiagramWidth =
+    width - 38;
+
+  const maxDiagramHeight =
+    height - 55;
+
+  const scale =
+    Math.min(
+      maxDiagramWidth /
+        sheetWidth,
+      maxDiagramHeight /
+        sheetHeight
+    );
+
+  const diagramWidth =
+    sheetWidth * scale;
+
+  const diagramHeight =
+    sheetHeight * scale;
+
+  const diagramX =
+    x +
+    (width - diagramWidth) /
+      2;
+
+  const diagramY =
+    y + 36;
+
+  doc
+    .rect(
+      diagramX,
+      diagramY,
+      diagramWidth,
+      diagramHeight
+    )
+    .fillColor("#ffffff")
+    .fill()
+    .strokeColor("#111111")
+    .lineWidth(1)
+    .stroke();
+
+  const placements =
+    Array.isArray(
+      sheet?.placements
+    )
+      ? sheet.placements
+      : [];
+
+  placements.forEach(
+    (
+      placement,
+      placementIndex
+    ) => {
+      const px =
+        diagramX +
+        safePdfNumber(
+          placement?.x,
+          0
+        ) * scale;
+
+      const py =
+        diagramY +
+        safePdfNumber(
+          placement?.y,
+          0
+        ) * scale;
+
+      const pw =
+        safePdfNumber(
+          placement?.width,
+          0
+        ) * scale;
+
+      const ph =
+        safePdfNumber(
+          placement?.height,
+          0
+        ) * scale;
+
+      if (
+        pw <= 0 ||
+        ph <= 0
+      ) {
+        return;
+      }
+
+      doc
+        .rect(
+          px,
+          py,
+          pw,
+          ph
+        )
+        .fillColor("#e6e6e6")
+        .fill()
+        .strokeColor("#8a8a8a")
+        .lineWidth(0.4)
+        .stroke();
+
+      if (
+        pw >= 16 &&
+        ph >= 10
+      ) {
+        const label =
+          cleanText(
+            placement?.instanceId ||
+            placement?.pieceId ||
+            placement?.id
+          ) ||
+          `P${placementIndex + 1}`;
+
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(4.2)
+          .fillColor("#333333")
+          .text(
+            label,
+            px + 1,
+            py + 2,
+            {
+              width:
+                Math.max(
+                  pw - 2,
+                  1
+                ),
+              height:
+                Math.max(
+                  ph - 3,
+                  1
+                ),
+              align: "center",
+              ellipsis: true,
+            }
+          );
+      }
+    }
+  );
+};
+
+const drawBathroomOptimizationAnnex = ({
+  doc,
+  quotation,
+  snapshot,
+}) => {
+  const optimization =
+    getBathroomOptimizationData(
+      snapshot
+    );
+
+  if (!optimization) {
+    return;
+  }
+
+  const totals =
+    optimization.totals || {};
+
+  const materials =
+    Array.isArray(
+      optimization.materials
+    )
+      ? optimization.materials
+      : [];
+
+  const generatedPieces =
+    Array.isArray(
+      optimization.generatedPieces
+    )
+      ? optimization.generatedPieces
+      : [];
+
+  doc.addPage({
+    size: "A4",
+    margin: 0,
+  });
+
+  let y =
+    drawProjectDocumentHeader({
+      doc,
+      quotation,
+      compact: true,
+    });
+
+  y =
+    drawProjectSectionTitle({
+      doc,
+      title:
+        "Anexo técnico · Despiece optimizado",
+      y,
+    });
+
+  doc
+    .font("Helvetica")
+    .fontSize(7)
+    .fillColor("#666666")
+    .text(
+      "Este anexo corresponde al cálculo técnico de corte asociado a la cotización. Las cantidades comerciales de placas de la página principal se obtienen de este resultado.",
+      34,
+      y,
+      {
+        width: 527,
+        lineGap: 2,
+      }
+    );
+
+  y =
+    doc.y + 16;
+
+  const cardGap = 8;
+  const cardWidth =
+    (527 - cardGap * 3) /
+    4;
+
+  const metricCards = [
+    [
+      "Placas",
+      formatNumber(
+        totals.sheetsRequired || 0
+      ),
+    ],
+    [
+      "Piezas",
+      formatNumber(
+        totals.pieces ||
+        generatedPieces.length ||
+        0
+      ),
+    ],
+    [
+      "Materiales",
+      formatNumber(
+        totals.materialGroups ||
+        materials.length ||
+        0
+      ),
+    ],
+    [
+      "Optimizer",
+      cleanText(
+        optimization.optimizerVersion ||
+        snapshot?.optimizer_version
+      ) || "—",
+    ],
+  ];
+
+  metricCards.forEach(
+    (
+      [label, value],
+      index
+    ) =>
+      drawBathroomMetricCard({
+        doc,
+        x:
+          34 +
+          index *
+            (cardWidth + cardGap),
+        y,
+        width:
+          cardWidth,
+        label,
+        value,
+      })
+  );
+
+  y += 72;
+
+  y =
+    drawProjectSectionTitle({
+      doc,
+      title:
+        "Resumen por material",
+      y,
+    });
+
+  y =
+    drawBathroomMaterialSummary({
+      doc,
+      materials,
+      y,
+    });
+
+  y += 20;
+
+  drawBathroomPiecesTable({
+    doc,
+    pieces:
+      generatedPieces,
+    quotation,
+    y,
+  });
+
+  for (
+    const group
+    of materials
+  ) {
+    const material =
+      group?.material || {};
+
+    const sheets =
+      Array.isArray(
+        group?.optimization
+          ?.sheets
+      )
+        ? group.optimization
+            .sheets
+        : [];
+
+    if (
+      sheets.length === 0
+    ) {
+      continue;
+    }
+
+    for (
+      let start = 0;
+      start < sheets.length;
+      start += 4
+    ) {
+      doc.addPage({
+        size: "A4",
+        margin: 0,
+      });
+
+      let pageY =
+        drawProjectDocumentHeader({
+          doc,
+          quotation,
+          compact: true,
+        });
+
+      const materialLabel =
+        [
+          cleanText(
+            material.code ||
+            material.label
+          ) || "Material",
+          material.thickness !== undefined &&
+          material.thickness !== null
+            ? `${formatNumber(
+                material.thickness
+              )} mm`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+      pageY =
+        drawProjectSectionTitle({
+          doc,
+          title:
+            `Patrones de corte · ${materialLabel}`,
+          y:
+            pageY,
+        });
+
+      const metrics =
+        group?.optimization
+          ?.metrics || {};
+
+      doc
+        .font("Helvetica")
+        .fontSize(6.4)
+        .fillColor("#666666")
+        .text(
+          `Placas: ${formatNumber(
+            metrics.sheetsRequired ||
+            sheets.length
+          )} · Aprovechamiento: ${formatNumber(
+            metrics.utilization || 0,
+            2
+          )}% · Desperdicio: ${formatNumber(
+            metrics.wastePercentage || 0,
+            2
+          )}% · Kerf: ${formatNumber(
+            metrics.kerf || 0,
+            2
+          )} mm`,
+          34,
+          pageY,
+          {
+            width: 527,
+          }
+        );
+
+      pageY += 22;
+
+      const chunk =
+        sheets.slice(
+          start,
+          start + 4
+        );
+
+      const cardWidth = 252;
+      const cardHeight = 235;
+      const gapX = 23;
+      const gapY = 18;
+
+      chunk.forEach(
+        (
+          sheet,
+          index
+        ) => {
+          const column =
+            index % 2;
+          const row =
+            Math.floor(
+              index / 2
+            );
+
+          drawBathroomSheetCard({
+            doc,
+            x:
+              34 +
+              column *
+                (cardWidth + gapX),
+            y:
+              pageY +
+              row *
+                (cardHeight + gapY),
+            width:
+              cardWidth,
+            height:
+              cardHeight,
+            sheet,
+            sheetIndex:
+              start + index,
+            material,
+          });
+        }
+      );
+    }
+  }
+};
+
 const buildProjectQuotationPdfBuffer =
   async ({
     quotation,
     project_lines = [],
+    bathroom_optimization = null,
   }) => {
     return new Promise(
       (
@@ -2398,6 +3436,17 @@ const buildProjectQuotationPdfBuffer =
               }
             );
 
+          if (
+            bathroom_optimization
+          ) {
+            drawBathroomOptimizationAnnex({
+              doc,
+              quotation,
+              snapshot:
+                bathroom_optimization,
+            });
+          }
+
           /*
            * Numeración final una vez conocidas todas
            * las páginas generadas por el detalle.
@@ -2444,6 +3493,7 @@ export const buildQuotationPdfBuffer =
     quotation,
     items = [],
     project_lines = [],
+    bathroom_optimization = null,
   }) => {
     if (
       cleanText(
@@ -2455,6 +3505,7 @@ export const buildQuotationPdfBuffer =
       return buildProjectQuotationPdfBuffer({
         quotation,
         project_lines,
+        bathroom_optimization,
       });
     }
 

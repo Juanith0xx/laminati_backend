@@ -977,7 +977,7 @@ const normalizeBilling = ({
   }
 
   if (type === "BOLETA") {
-    return {
+    const normalized = {
       document_type: "BOLETA",
       customer_type:
         String(
@@ -1024,6 +1024,37 @@ const normalizeBilling = ({
           billing?.relbase_customer_id
         ),
     };
+
+    /*
+     * Una BOLETA identificada por RUT puede requerir crear
+     * al receptor en Relbase durante la preparación del DTE.
+     * No permitimos persistir la venta si falta ubicación,
+     * porque el job de emisión quedaría en FAILED después
+     * de que el pago ya fue registrado.
+     *
+     * Una BOLETA realmente anónima (sin RUT) conserva el
+     * comportamiento anterior y no exige estos campos.
+     */
+    if (normalized.rut) {
+      const requiredLocation = [
+        ["address_line", "dirección"],
+        ["commune", "comuna"],
+        ["city", "ciudad"],
+        ["region", "región"],
+      ];
+
+      for (const [field, label] of requiredLocation) {
+        if (!toOptionalString(normalized[field])) {
+          throw createServiceError(
+            `Falta ${label} para una venta POS con BOLETA identificada`,
+            400,
+            "POS_RECEIPT_BILLING_INCOMPLETE"
+          );
+        }
+      }
+    }
+
+    return normalized;
   }
 
   const required = [
@@ -1033,6 +1064,7 @@ const normalizeBilling = ({
     ["address_line", "dirección"],
     ["commune", "comuna"],
     ["city", "ciudad"],
+    ["region", "región"],
     ["relbase_customer_id", "cliente Relbase"],
   ];
 
@@ -1685,6 +1717,9 @@ export const ensurePosInvoiceCustomer = async ({
     payload.commune
   );
   const city = toOptionalString(payload.city);
+  const region = toOptionalString(
+    payload.region
+  );
 
   const required = [
     [rut, "RUT"],
@@ -1693,6 +1728,7 @@ export const ensurePosInvoiceCustomer = async ({
     [addressLine, "dirección"],
     [commune, "comuna"],
     [city, "ciudad"],
+    [region, "región"],
   ];
 
   for (const [value, label] of required) {
