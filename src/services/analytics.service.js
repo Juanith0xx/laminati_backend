@@ -92,6 +92,66 @@ const SESSION_WINDOW_LIMIT = Math.min(
   10000
 );
 
+// Clasificacion conservadora de oleadas en URLs con filtros heredados.
+// NO se usa el pais, el User-Agent o dos eventos de forma aislada.
+// El umbral exige numerosas sesiones nuevas con el MISMO patron en 30 minutos.
+const BOT_BURST_MIN_SESSIONS = Math.min(
+  Math.max(Number(process.env.ANALYTICS_BOT_BURST_MIN_SESSIONS) || 12, 10),
+  500
+);
+
+const isLegacyFacetedCatalogPath = (value) => {
+  if (!value || !value.startsWith("/productos/laminados?")) return false;
+  try {
+    const url = new URL(value, "https://laminati.cl");
+    return (
+      url.pathname === "/productos/laminados" &&
+      (url.searchParams.get("q") || "").length >= 70 &&
+      ["order", "productListView", "resultsPerPage"].some((key) =>
+        url.searchParams.has(key)
+      )
+    );
+  } catch {
+    return false;
+  }
+};
+
+// Detecta una oleada de sesiones independientes con exactamente PAGE_VIEW y
+// COLLECTION_VIEW. Marca exclusivamente el subconjunto que coincide; las
+// sesiones normales y las conversiones se conservan. Se ejecuta tras insertar
+// cada evento relevante y dentro de la transaccion.
+const markSuspiciousLegacyCatalogBurst = async (client, countryCode, threshold) => {
+  const result = await client.query(
+    `WITH candidates AS MATERIALIZED (
+       SELECT s.id
+       FROM analytics_sessions s
+       JOIN analytics_events e ON e.session_id = s.id
+       WHERE s.first_seen_at >= NOW() - INTERVAL '30 minutes'
+         AND s.country_code = $1
+         AND s.device_type = 'desktop'
+         AND s.landing_page LIKE '/productos/laminados?%'
+         AND s.landing_page ~ '[?&]q='
+         AND s.landing_page ~ '[?&](order|productListView|resultsPerPage)='
+         AND length(s.landing_page) >= 140
+       GROUP BY s.id
+       HAVING COUNT(*) = 2
+          AND COUNT(*) FILTER (WHERE e.event_type = 'PAGE_VIEW') = 1
+          AND COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_VIEW') = 1
+     ), burst AS (
+       SELECT COUNT(*) >= $2::integer AS detected FROM candidates
+     )
+     UPDATE analytics_sessions s
+     SET is_suspected_bot = TRUE,
+         bot_reason = 'legacy_catalog_burst_30m',
+         bot_detected_at = NOW()
+     FROM candidates c, burst b
+     WHERE b.detected AND s.id = c.id AND s.is_suspected_bot = FALSE
+     RETURNING s.id`,
+    [countryCode, threshold]
+  );
+  return result.rowCount;
+};
+
 export const createAnalyticsEvent = async (payload = {}) => {
   const sessionKey = cleanText(payload.session_key, 100);
   const eventType = cleanText(payload.event_type, 50)?.toUpperCase();
@@ -267,6 +327,21 @@ export const createAnalyticsEvent = async (payload = {}) => {
         JSON.stringify(event.metadata),
       ]
     );
+
+    // Clasificamos despues del segundo evento, sin frenar ventas ni SEO.
+    // La ubicacion es una senal de agrupacion, NUNCA criterio unico.
+    if (
+      session.countryCode &&
+      session.deviceType === "desktop" &&
+      (eventType === "PAGE_VIEW" || eventType === "COLLECTION_VIEW") &&
+      isLegacyFacetedCatalogPath(session.landingPage)
+    ) {
+      await markSuspiciousLegacyCatalogBurst(
+        client,
+        session.countryCode,
+        BOT_BURST_MIN_SESSIONS
+      );
+    }
 
     await client.query("COMMIT");
 
