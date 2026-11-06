@@ -14,33 +14,52 @@ const money = (value) => {
 const cleanText = (value) => String(value ?? "").trim();
 
 
-const ABET_LAMINATI_LOGO_PATH =
+const LAMINATI_WORLD_LOGO_PATH =
   fileURLToPath(
     new URL(
-      "../assets/abet-laminati-logo.png",
+      "../assets/logo-laminati-world.png",
       import.meta.url
     )
   );
 
-const drawAbetLaminatiLogo = ({
+const getLaminatiWorldLogoPath = () =>
+  existsSync(
+    LAMINATI_WORLD_LOGO_PATH
+  )
+    ? LAMINATI_WORLD_LOGO_PATH
+    : null;
+
+const drawLaminatiWorldLogo = ({
   doc,
   x,
   y,
   width,
+  height = null,
   fallbackFontSize = 20,
 }) => {
-  if (
-    existsSync(
-      ABET_LAMINATI_LOGO_PATH
-    )
-  ) {
+  const logoPath =
+    getLaminatiWorldLogoPath();
+
+  if (logoPath) {
+    const imageOptions =
+      height
+        ? {
+            fit: [
+              width,
+              height,
+            ],
+            align: "left",
+            valign: "center",
+          }
+        : {
+            width,
+          };
+
     doc.image(
-      ABET_LAMINATI_LOGO_PATH,
+      logoPath,
       x,
       y,
-      {
-        width,
-      }
+      imageOptions
     );
 
     return true;
@@ -49,8 +68,8 @@ const drawAbetLaminatiLogo = ({
   /*
    * Fallback de seguridad:
    * si el asset no se encuentra en el servidor,
-   * mantiene la cabecera anterior para no impedir
-   * la generación de cotizaciones.
+   * mantiene la generación del PDF y muestra
+   * la marca Laminati World en texto.
    */
   doc
     .font("Helvetica-Bold")
@@ -59,7 +78,7 @@ const drawAbetLaminatiLogo = ({
     )
     .fillColor("#111111")
     .text(
-      "LAMINATI",
+      "laminati world",
       x,
       y
     );
@@ -112,7 +131,7 @@ const buildStandardQuotationPdfBuffer = async ({
         margin: 42,
         info: {
           Title: `Cotización ${quotation.quote_number}`,
-          Author: "Laminati",
+          Author: "Laminati World",
           Subject: "Cotización comercial",
         },
       });
@@ -126,7 +145,7 @@ const buildStandardQuotationPdfBuffer = async ({
       const contentWidth = pageWidth - 84;
 
       const standardLogoDrawn =
-        drawAbetLaminatiLogo({
+        drawLaminatiWorldLogo({
           doc,
           x: 42,
           y: 24,
@@ -485,24 +504,54 @@ const drawProjectDocumentHeader = ({
   const margin =
     34;
 
+  /*
+   * El logo Laminati World se inserta dentro de una caja
+   * vertical fija para conservar su proporción y mantener
+   * el wordmark + isotipo centrados visualmente en la misma
+   * línea del encabezado, tanto en páginas normales como
+   * compactas.
+   */
+  const logoBoxY =
+    compact
+      ? 20
+      : 24;
+
+  const logoBoxHeight =
+    compact
+      ? 31
+      : 36;
+
   const projectLogoDrawn =
-    drawAbetLaminatiLogo({
+    drawLaminatiWorldLogo({
       doc,
       x:
         margin - 9.5,
       y:
-        compact
-          ? 17
-          : 20,
+        logoBoxY,
       width:
         compact
           ? 108
           : 124,
+      height:
+        logoBoxHeight,
       fallbackFontSize:
         compact
           ? 17
           : 20,
     });
+
+  const subtitleY =
+    projectLogoDrawn
+      ? (
+          logoBoxY +
+          logoBoxHeight +
+          (compact ? 4 : 5)
+        )
+      : (
+          compact
+            ? 50
+            : 55
+        );
 
   if (
     projectLogoDrawn
@@ -521,10 +570,8 @@ const drawProjectDocumentHeader = ({
       )
       .text(
         "Laminati Chile, distribuidor exclusivo de Abet Laminati en Chile",
-        margin ,
-        compact
-          ? 50
-          : 55,
+        margin,
+        subtitleY,
         {
           width:
             compact
@@ -537,6 +584,18 @@ const drawProjectDocumentHeader = ({
         }
       );
   }
+
+  const projectTitleY =
+    projectLogoDrawn
+      ? (
+          subtitleY +
+          (compact ? 14 : 16)
+        )
+      : (
+          compact
+            ? 53
+            : 60
+        );
 
   doc
     .font(
@@ -551,17 +610,7 @@ const drawProjectDocumentHeader = ({
     .text(
       "COTIZACIÓN DE PROYECTO",
       margin,
-      projectLogoDrawn
-        ? (
-            compact
-              ? 64
-              : 72
-          )
-        : (
-            compact
-              ? 53
-              : 60
-          )
+      projectTitleY
     );
 
   doc
@@ -621,9 +670,16 @@ const drawProjectDocumentHeader = ({
     );
 
   const lineY =
-    compact
-      ? 79
-      : 88;
+    projectLogoDrawn
+      ? (
+          projectTitleY +
+          (compact ? 15 : 16)
+        )
+      : (
+          compact
+            ? 79
+            : 88
+        );
 
   doc
     .moveTo(
@@ -676,21 +732,15 @@ const drawProjectFooter = ({
     )
     .stroke();
 
-  doc
-    .font(
-      "Helvetica-Bold"
-    )
-    .fontSize(
-      6.8
-    )
-    .fillColor(
-      "#111111"
-    )
-    .text(
-      "LAMINATI",
-      34,
-      footerY
-    );
+  const footerLogoDrawn =
+    drawLaminatiWorldLogo({
+      doc,
+      x: 34,
+      y: footerY - 6,
+      width: 78,
+      height: 18,
+      fallbackFontSize: 7.2,
+    });
 
   doc
     .font(
@@ -704,12 +754,16 @@ const drawProjectFooter = ({
     )
     .text(
       "SOLUCIONES EN SUPERFICIES DE ALTO DESEMPEÑO",
-      155,
+      footerLogoDrawn
+        ? 135
+        : 155,
       footerY +
         1,
       {
         width:
-          285,
+          footerLogoDrawn
+            ? 305
+            : 285,
         align:
           "center",
       }
@@ -2302,6 +2356,284 @@ const drawBathroomPiecesTable = ({
   return currentY;
 };
 
+const BATHROOM_PIECE_STYLES = {
+  DIVIDER: {
+    label: "Divisor",
+    fill: "#DDF1CD",
+    stroke: "#5E9D32",
+  },
+  DOOR: {
+    label: "Puerta",
+    fill: "#DCEEFF",
+    stroke: "#3985C6",
+  },
+  PILASTER: {
+    label: "Pilastra",
+    fill: "#FFF0BF",
+    stroke: "#C99A20",
+  },
+  UNKNOWN: {
+    label: "Pieza",
+    fill: "#ECECEC",
+    stroke: "#777777",
+  },
+};
+
+const getBathroomPlacementType =
+  (placement) =>
+    cleanText(
+      placement
+        ?.metadata
+        ?.type ||
+      placement?.type ||
+      placement?.partType ||
+      placement?.kind ||
+      "UNKNOWN"
+    )
+      .toUpperCase();
+
+const getBathroomPlacementStyle =
+  (placement) => {
+    const type =
+      getBathroomPlacementType(
+        placement
+      );
+
+    return (
+      BATHROOM_PIECE_STYLES[
+        type
+      ] ||
+      BATHROOM_PIECE_STYLES
+        .UNKNOWN
+    );
+  };
+
+const aggregateBathroomSheetCuts =
+  (sheet) => {
+    const grouped =
+      new Map();
+
+    const placements =
+      Array.isArray(
+        sheet?.placements
+      )
+        ? sheet.placements
+        : [];
+
+    for (
+      const placement
+      of placements
+    ) {
+      const type =
+        getBathroomPlacementType(
+          placement
+        );
+
+      const width =
+        safePdfNumber(
+          placement?.width,
+          0
+        );
+
+      const height =
+        safePdfNumber(
+          placement?.height,
+          0
+        );
+
+      const key =
+        `${type}|${width}|${height}`;
+
+      const current =
+        grouped.get(key) || {
+          type,
+          width,
+          height,
+          quantity: 0,
+        };
+
+      current.quantity += 1;
+
+      grouped.set(
+        key,
+        current
+      );
+    }
+
+    return [
+      ...grouped.values(),
+    ];
+  };
+
+const getBathroomSheetCutSummary =
+  (sheet) =>
+    aggregateBathroomSheetCuts(
+      sheet
+    )
+      .map((cut) => {
+        const style =
+          BATHROOM_PIECE_STYLES[
+            cut.type
+          ] ||
+          BATHROOM_PIECE_STYLES
+            .UNKNOWN;
+
+        return `${style.label} ×${formatNumber(
+          cut.quantity
+        )} · ${formatNumber(
+          cut.width
+        )} × ${formatNumber(
+          cut.height
+        )} mm`;
+      })
+      .join("  |  ");
+
+const drawBathroomLegend = ({
+  doc,
+  x,
+  y,
+  width,
+}) => {
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(7.2)
+    .fillColor("#111111")
+    .text(
+      "LEYENDA · TIPOS DE PIEZA",
+      x,
+      y,
+      {
+        width,
+      }
+    );
+
+  let rowY =
+    y + 18;
+
+  const items = [
+    [
+      "DIVIDER",
+      "Panel divisor",
+    ],
+    [
+      "DOOR",
+      "Hoja de puerta",
+    ],
+    [
+      "PILASTER",
+      "Pilastra / remate",
+    ],
+  ];
+
+  for (
+    const [
+      type,
+      description,
+    ]
+    of items
+  ) {
+    const style =
+      BATHROOM_PIECE_STYLES[
+        type
+      ];
+
+    doc
+      .roundedRect(
+        x,
+        rowY,
+        18,
+        11,
+        2
+      )
+      .fillColor(
+        style.fill
+      )
+      .fill()
+      .strokeColor(
+        style.stroke
+      )
+      .lineWidth(0.7)
+      .stroke();
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(6)
+      .fillColor("#222222")
+      .text(
+        style.label,
+        x + 26,
+        rowY - 1,
+        {
+          width:
+            width - 26,
+        }
+      );
+
+    doc
+      .font("Helvetica")
+      .fontSize(5.1)
+      .fillColor("#777777")
+      .text(
+        description,
+        x + 26,
+        rowY + 7,
+        {
+          width:
+            width - 26,
+        }
+      );
+
+    rowY += 27;
+  }
+
+  doc
+    .rect(
+      x,
+      rowY,
+      18,
+      11
+    )
+    .fillColor("#ffffff")
+    .fill()
+    .strokeColor("#999999")
+    .lineWidth(0.6)
+    .dash(3, {
+      space: 2,
+    })
+    .stroke()
+    .undash();
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(6)
+    .fillColor("#222222")
+    .text(
+      "Desperdicio",
+      x + 26,
+      rowY - 1,
+      {
+        width:
+          width - 26,
+      }
+    );
+
+  doc
+    .font("Helvetica")
+    .fontSize(5.1)
+    .fillColor("#777777")
+    .text(
+      "Área no utilizada",
+      x + 26,
+      rowY + 7,
+      {
+        width:
+          width - 26,
+      }
+    );
+
+  return rowY + 19;
+};
+
 const drawBathroomSheetCard = ({
   doc,
   x,
@@ -2318,34 +2650,36 @@ const drawBathroomSheetCard = ({
       y,
       width,
       height,
-      3
+      4
     )
     .fillColor("#fafafa")
     .fill()
-    .strokeColor("#dddddd")
-    .lineWidth(0.6)
+    .strokeColor("#d9d9d9")
+    .lineWidth(0.7)
     .stroke();
 
   const sheetWidth =
     safePdfNumber(
-      material?.sheetWidth,
+      material?.sheetWidth ||
+      sheet?.width,
       1220
     );
 
   const sheetHeight =
     safePdfNumber(
-      material?.sheetHeight,
+      material?.sheetHeight ||
+      sheet?.height,
       3050
     );
 
   doc
     .font("Helvetica-Bold")
-    .fontSize(6.6)
+    .fontSize(7.2)
     .fillColor("#111111")
     .text(
       `PLACA ${sheetIndex + 1}`,
       x + 10,
-      y + 10,
+      y + 9,
       {
         width:
           width - 20,
@@ -2354,8 +2688,8 @@ const drawBathroomSheetCard = ({
 
   doc
     .font("Helvetica")
-    .fontSize(5.6)
-    .fillColor("#888888")
+    .fontSize(5.8)
+    .fillColor("#777777")
     .text(
       `${formatNumber(
         sheetWidth
@@ -2371,11 +2705,35 @@ const drawBathroomSheetCard = ({
       }
     );
 
+  const sheetCutSummary =
+    getBathroomSheetCutSummary(
+      sheet
+    );
+
+  if (sheetCutSummary) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(4.7)
+      .fillColor("#555555")
+      .text(
+        sheetCutSummary,
+        x + 10,
+        y + 24,
+        {
+          width:
+            width - 20,
+          align: "center",
+          ellipsis: true,
+          lineBreak: false,
+        }
+      );
+  }
+
   const maxDiagramWidth =
-    width - 38;
+    width - 62;
 
   const maxDiagramHeight =
-    height - 55;
+    height - 72;
 
   const scale =
     Math.min(
@@ -2394,10 +2752,153 @@ const drawBathroomSheetCard = ({
   const diagramX =
     x +
     (width - diagramWidth) /
-      2;
+      2 +
+    4;
 
   const diagramY =
-    y + 36;
+    y + 53;
+
+  /*
+   * Cota horizontal de la placa.
+   */
+  const topDimY =
+    diagramY - 10;
+
+  doc
+    .moveTo(
+      diagramX,
+      topDimY
+    )
+    .lineTo(
+      diagramX +
+        diagramWidth,
+      topDimY
+    )
+    .strokeColor("#555555")
+    .lineWidth(0.45)
+    .stroke();
+
+  doc
+    .moveTo(
+      diagramX,
+      topDimY - 2
+    )
+    .lineTo(
+      diagramX,
+      topDimY + 2
+    )
+    .stroke();
+
+  doc
+    .moveTo(
+      diagramX +
+        diagramWidth,
+      topDimY - 2
+    )
+    .lineTo(
+      diagramX +
+        diagramWidth,
+      topDimY + 2
+    )
+    .stroke();
+
+  doc
+    .font("Helvetica")
+    .fontSize(4.8)
+    .fillColor("#333333")
+    .text(
+      `${formatNumber(
+        sheetWidth
+      )} mm`,
+      diagramX,
+      topDimY - 8,
+      {
+        width:
+          diagramWidth,
+        align: "center",
+      }
+    );
+
+  /*
+   * Cota vertical de la placa.
+   */
+  const leftDimX =
+    diagramX - 9;
+
+  doc
+    .moveTo(
+      leftDimX,
+      diagramY
+    )
+    .lineTo(
+      leftDimX,
+      diagramY +
+        diagramHeight
+    )
+    .strokeColor("#555555")
+    .lineWidth(0.45)
+    .stroke();
+
+  doc
+    .moveTo(
+      leftDimX - 2,
+      diagramY
+    )
+    .lineTo(
+      leftDimX + 2,
+      diagramY
+    )
+    .stroke();
+
+  doc
+    .moveTo(
+      leftDimX - 2,
+      diagramY +
+        diagramHeight
+    )
+    .lineTo(
+      leftDimX + 2,
+      diagramY +
+        diagramHeight
+    )
+    .stroke();
+
+  doc
+    .save()
+    .font("Helvetica")
+    .fontSize(4.8)
+    .fillColor("#333333")
+    .rotate(
+      -90,
+      {
+        origin: [
+          leftDimX - 8,
+          diagramY +
+            diagramHeight /
+              2,
+        ],
+      }
+    )
+    .text(
+      `${formatNumber(
+        sheetHeight
+      )} mm`,
+      leftDimX -
+        8 -
+        diagramHeight /
+          2,
+      diagramY +
+        diagramHeight /
+          2 -
+        3,
+      {
+        width:
+          diagramHeight,
+        align: "center",
+        lineBreak: false,
+      }
+    )
+    .restore();
 
   doc
     .rect(
@@ -2409,7 +2910,7 @@ const drawBathroomSheetCard = ({
     .fillColor("#ffffff")
     .fill()
     .strokeColor("#111111")
-    .lineWidth(1)
+    .lineWidth(0.9)
     .stroke();
 
   const placements =
@@ -2438,17 +2939,25 @@ const drawBathroomSheetCard = ({
           0
         ) * scale;
 
-      const pw =
+      const pieceWidthMm =
         safePdfNumber(
           placement?.width,
           0
-        ) * scale;
+        );
 
-      const ph =
+      const pieceHeightMm =
         safePdfNumber(
           placement?.height,
           0
-        ) * scale;
+        );
+
+      const pw =
+        pieceWidthMm *
+        scale;
+
+      const ph =
+        pieceHeightMm *
+        scale;
 
       if (
         pw <= 0 ||
@@ -2457,6 +2966,11 @@ const drawBathroomSheetCard = ({
         return;
       }
 
+      const style =
+        getBathroomPlacementStyle(
+          placement
+        );
+
       doc
         .rect(
           px,
@@ -2464,50 +2978,505 @@ const drawBathroomSheetCard = ({
           pw,
           ph
         )
-        .fillColor("#e6e6e6")
+        .fillColor(
+          style.fill
+        )
         .fill()
-        .strokeColor("#8a8a8a")
-        .lineWidth(0.4)
+        .strokeColor(
+          style.stroke
+        )
+        .lineWidth(0.65)
         .stroke();
 
+      const label =
+        cleanText(
+          placement?.instanceId ||
+          placement?.pieceId ||
+          placement?.id
+        ) ||
+        `P${placementIndex + 1}`;
+
       if (
-        pw >= 16 &&
-        ph >= 10
+        pw >= 28 &&
+        ph >= 25
       ) {
-        const label =
-          cleanText(
-            placement?.instanceId ||
-            placement?.pieceId ||
-            placement?.id
-          ) ||
-          `P${placementIndex + 1}`;
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(4.5)
+          .fillColor("#222222")
+          .text(
+            label,
+            px + 2,
+            py + 4,
+            {
+              width:
+                Math.max(
+                  pw - 4,
+                  1
+                ),
+              align: "center",
+              ellipsis: true,
+              lineBreak: false,
+            }
+          );
+
+        doc
+          .font("Helvetica")
+          .fontSize(4.1)
+          .fillColor("#333333")
+          .text(
+            style.label,
+            px + 2,
+            py + 13,
+            {
+              width:
+                Math.max(
+                  pw - 4,
+                  1
+                ),
+              align: "center",
+              ellipsis: true,
+              lineBreak: false,
+            }
+          );
 
         doc
           .font("Helvetica-Bold")
           .fontSize(4.2)
-          .fillColor("#333333")
+          .fillColor("#222222")
           .text(
-            label,
+            `${formatNumber(
+              pieceWidthMm
+            )} × ${formatNumber(
+              pieceHeightMm
+            )} mm`,
+            px + 2,
+            py + 21,
+            {
+              width:
+                Math.max(
+                  pw - 4,
+                  1
+                ),
+              align: "center",
+              ellipsis: true,
+              lineBreak: false,
+            }
+          );
+      } else if (
+        pw >= 20 &&
+        ph >= 28
+      ) {
+        /*
+         * Formato compacto para puertas u otras piezas
+         * que no alcanzan a mostrar el ID completo.
+         */
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(3.7)
+          .fillColor("#222222")
+          .text(
+            style.label,
             px + 1,
-            py + 2,
+            py + 6,
             {
               width:
                 Math.max(
                   pw - 2,
                   1
                 ),
-              height:
+              align: "center",
+              ellipsis: true,
+              lineBreak: false,
+            }
+          );
+
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(3.35)
+          .fillColor("#222222")
+          .text(
+            `${formatNumber(
+              pieceWidthMm
+            )}×${formatNumber(
+              pieceHeightMm
+            )}`,
+            px + 1,
+            py + 15,
+            {
+              width:
                 Math.max(
-                  ph - 3,
+                  pw - 2,
                   1
                 ),
               align: "center",
               ellipsis: true,
+              lineBreak: false,
             }
           );
+      } else if (
+        pw >= 5 &&
+        ph >= 35
+      ) {
+        /*
+         * Las pilastras son demasiado angostas para
+         * texto horizontal. Se muestra su medida
+         * rotada dentro de la pieza.
+         */
+        const centerX =
+          px + pw / 2;
+
+        const centerY =
+          py + ph / 2;
+
+        doc
+          .save()
+          .font("Helvetica-Bold")
+          .fontSize(2.9)
+          .fillColor("#333333")
+          .rotate(
+            -90,
+            {
+              origin: [
+                centerX,
+                centerY,
+              ],
+            }
+          )
+          .text(
+            `${formatNumber(
+              pieceWidthMm
+            )} × ${formatNumber(
+              pieceHeightMm
+            )} mm`,
+            centerX -
+              ph / 2 + 2,
+            centerY - 2,
+            {
+              width:
+                Math.max(
+                  ph - 4,
+                  1
+                ),
+              align: "center",
+              ellipsis: true,
+              lineBreak: false,
+            }
+          )
+          .restore();
       }
     }
   );
+};
+
+const drawBathroomCutDetailPanel = ({
+  doc,
+  x,
+  y,
+  width,
+  height,
+  sheets,
+  startIndex,
+  metrics,
+  material,
+}) => {
+  doc
+    .roundedRect(
+      x,
+      y,
+      width,
+      height,
+      4
+    )
+    .fillColor("#ffffff")
+    .fill()
+    .strokeColor("#d9d9d9")
+    .lineWidth(0.7)
+    .stroke();
+
+  const inset =
+    12;
+
+  let currentY =
+    y + 12;
+
+  currentY =
+    drawBathroomLegend({
+      doc,
+      x:
+        x + inset,
+      y:
+        currentY,
+      width:
+        width -
+        inset * 2,
+    });
+
+  currentY += 9;
+
+  doc
+    .moveTo(
+      x + inset,
+      currentY
+    )
+    .lineTo(
+      x +
+        width -
+        inset,
+      currentY
+    )
+    .strokeColor("#e2e2e2")
+    .lineWidth(0.5)
+    .stroke();
+
+  currentY += 10;
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(7)
+    .fillColor("#111111")
+    .text(
+      "DETALLE DE CORTES POR PLACA",
+      x + inset,
+      currentY,
+      {
+        width:
+          width -
+          inset * 2,
+      }
+    );
+
+  currentY += 16;
+
+  for (
+    let sheetOffset = 0;
+    sheetOffset <
+    sheets.length;
+    sheetOffset += 1
+  ) {
+    const sheet =
+      sheets[sheetOffset];
+
+    const rows =
+      aggregateBathroomSheetCuts(
+        sheet
+      );
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(5.8)
+      .fillColor("#111111")
+      .text(
+        `PLACA ${startIndex + sheetOffset + 1}`,
+        x + inset,
+        currentY,
+        {
+          width:
+            42,
+        }
+      );
+
+    let rowY =
+      currentY;
+
+    if (
+      rows.length === 0
+    ) {
+      doc
+        .font("Helvetica")
+        .fontSize(5.2)
+        .fillColor("#777777")
+        .text(
+          "Sin piezas",
+          x +
+            inset +
+            46,
+          rowY,
+          {
+            width:
+              width -
+              inset * 2 -
+              46,
+          }
+        );
+
+      currentY += 15;
+      continue;
+    }
+
+    rows.forEach(
+      (
+        row,
+        rowIndex
+      ) => {
+        const style =
+          BATHROOM_PIECE_STYLES[
+            row.type
+          ] ||
+          BATHROOM_PIECE_STYLES
+            .UNKNOWN;
+
+        if (
+          rowIndex > 0
+        ) {
+          rowY += 13;
+        }
+
+        doc
+          .roundedRect(
+            x +
+              inset +
+              46,
+            rowY - 1,
+            7,
+            7,
+            1
+          )
+          .fillColor(
+            style.fill
+          )
+          .fill()
+          .strokeColor(
+            style.stroke
+          )
+          .lineWidth(0.45)
+          .stroke();
+
+        doc
+          .font("Helvetica")
+          .fontSize(5)
+          .fillColor("#333333")
+          .text(
+            `${style.label} ×${row.quantity}`,
+            x +
+              inset +
+              57,
+            rowY - 1,
+            {
+              width:
+                55,
+              ellipsis: true,
+              lineBreak: false,
+            }
+          );
+
+        doc
+          .font("Helvetica")
+          .fontSize(4.9)
+          .fillColor("#555555")
+          .text(
+            `${formatNumber(
+              row.width
+            )} × ${formatNumber(
+              row.height
+            )}`,
+            x +
+              width -
+              inset -
+              66,
+            rowY - 1,
+            {
+              width:
+                66,
+              align: "right",
+              lineBreak: false,
+            }
+          );
+      }
+    );
+
+    currentY =
+      rowY +
+      16;
+
+    if (
+      currentY >
+      y + height - 86
+    ) {
+      break;
+    }
+  }
+
+  const summaryY =
+    y + height - 69;
+
+  doc
+    .roundedRect(
+      x + inset,
+      summaryY,
+      width -
+        inset * 2,
+      54,
+      3
+    )
+    .fillColor("#F4F8EB")
+    .fill();
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(6.4)
+    .fillColor("#4D7600")
+    .text(
+      "RESUMEN DEL MATERIAL",
+      x + inset + 10,
+      summaryY + 9,
+      {
+        width:
+          width -
+          inset * 2 -
+          20,
+      }
+    );
+
+  const materialCode =
+    cleanText(
+      material?.code ||
+      material?.label
+    ) || "Material";
+
+  doc
+    .font("Helvetica")
+    .fontSize(5.3)
+    .fillColor("#333333")
+    .text(
+      `${materialCode} · ${formatNumber(
+        metrics.sheetsRequired || 0
+      )} placas`,
+      x + inset + 10,
+      summaryY + 23,
+      {
+        width:
+          width -
+          inset * 2 -
+          20,
+      }
+    );
+
+  doc
+    .font("Helvetica")
+    .fontSize(5.1)
+    .fillColor("#555555")
+    .text(
+      `Aprovechamiento ${formatNumber(
+        metrics.utilization || 0,
+        2
+      )}% · Desperdicio ${formatNumber(
+        metrics.wastePercentage || 0,
+        2
+      )}% · Kerf ${formatNumber(
+        metrics.kerf || 0,
+        2
+      )} mm`,
+      x + inset + 10,
+      summaryY + 36,
+      {
+        width:
+          width -
+          inset * 2 -
+          20,
+        lineGap: 1,
+      }
+    );
 };
 
 const drawBathroomOptimizationAnnex = ({
@@ -2541,6 +3510,9 @@ const drawBathroomOptimizationAnnex = ({
       ? optimization.generatedPieces
       : [];
 
+  /*
+   * Página resumen del anexo en formato vertical.
+   */
   doc.addPage({
     size: "A4",
     margin: 0,
@@ -2661,6 +3633,10 @@ const drawBathroomOptimizationAnnex = ({
     y,
   });
 
+  /*
+   * Los patrones pasan a A4 horizontal para que
+   * las piezas, cotas y la tabla sean legibles.
+   */
   for (
     const group
     of materials
@@ -2690,6 +3666,7 @@ const drawBathroomOptimizationAnnex = ({
     ) {
       doc.addPage({
         size: "A4",
+        layout: "landscape",
         margin: 0,
       });
 
@@ -2729,9 +3706,15 @@ const drawBathroomOptimizationAnnex = ({
         group?.optimization
           ?.metrics || {};
 
+      const pageWidth =
+        doc.page.width;
+
+      const contentWidth =
+        pageWidth - 68;
+
       doc
         .font("Helvetica")
-        .fontSize(6.4)
+        .fontSize(6.6)
         .fillColor("#666666")
         .text(
           `Placas: ${formatNumber(
@@ -2750,11 +3733,12 @@ const drawBathroomOptimizationAnnex = ({
           34,
           pageY,
           {
-            width: 527,
+            width:
+              contentWidth,
           }
         );
 
-      pageY += 22;
+      pageY += 21;
 
       const chunk =
         sheets.slice(
@@ -2762,10 +3746,40 @@ const drawBathroomOptimizationAnnex = ({
           start + 4
         );
 
-      const cardWidth = 252;
-      const cardHeight = 235;
-      const gapX = 23;
-      const gapY = 18;
+      const sidebarWidth =
+        190;
+
+      const layoutGap =
+        14;
+
+      const drawingWidth =
+        contentWidth -
+        sidebarWidth -
+        layoutGap;
+
+      const cardGapX =
+        12;
+
+      const cardGapY =
+        12;
+
+      const cardWidth =
+        (drawingWidth -
+          cardGapX) /
+        2;
+
+      const bottomLimit =
+        doc.page.height -
+        54;
+
+      const availableHeight =
+        bottomLimit -
+        pageY;
+
+      const cardHeight =
+        (availableHeight -
+          cardGapY) /
+        2;
 
       chunk.forEach(
         (
@@ -2774,6 +3788,7 @@ const drawBathroomOptimizationAnnex = ({
         ) => {
           const column =
             index % 2;
+
           const row =
             Math.floor(
               index / 2
@@ -2784,11 +3799,13 @@ const drawBathroomOptimizationAnnex = ({
             x:
               34 +
               column *
-                (cardWidth + gapX),
+                (cardWidth +
+                  cardGapX),
             y:
               pageY +
               row *
-                (cardHeight + gapY),
+                (cardHeight +
+                  cardGapY),
             width:
               cardWidth,
             height:
@@ -2800,6 +3817,26 @@ const drawBathroomOptimizationAnnex = ({
           });
         }
       );
+
+      drawBathroomCutDetailPanel({
+        doc,
+        x:
+          34 +
+          drawingWidth +
+          layoutGap,
+        y:
+          pageY,
+        width:
+          sidebarWidth,
+        height:
+          availableHeight,
+        sheets:
+          chunk,
+        startIndex:
+          start,
+        metrics,
+        material,
+      });
     }
   }
 };
@@ -2828,7 +3865,7 @@ const buildProjectQuotationPdfBuffer =
                 Title:
                   `Cotización ${quotation.quote_number}`,
                 Author:
-                  "Laminati",
+                  "Laminati World",
                 Subject:
                   "Cotización de proyecto",
               },

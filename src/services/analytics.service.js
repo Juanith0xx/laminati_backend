@@ -282,6 +282,7 @@ export const createAnalyticsEvent = async (payload = {}) => {
   }
 };
 
+// Todas las metricas excluyen sesiones marcadas como sospechosas; los datos se conservan.
 export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
   const periodDays = normalizeDays(days);
 
@@ -307,18 +308,21 @@ export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
         JOIN analytics_events e
           ON e.session_id = s.id
         WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
       `,
       [periodDays]
     ),
     pool.query(
       `
         SELECT
-          DATE(created_at AT TIME ZONE 'America/Santiago') AS day,
-          COUNT(*) FILTER (WHERE event_type = 'PAGE_VIEW')::int AS page_views,
-          COUNT(DISTINCT session_id)::int AS sessions
-        FROM analytics_events
-        WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
-        GROUP BY DATE(created_at AT TIME ZONE 'America/Santiago')
+          DATE(e.created_at AT TIME ZONE 'America/Santiago') AS day,
+          COUNT(*) FILTER (WHERE e.event_type = 'PAGE_VIEW')::int AS page_views,
+          COUNT(DISTINCT e.session_id)::int AS sessions
+        FROM analytics_events e
+        JOIN analytics_sessions s ON s.id = e.session_id
+        WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
+        GROUP BY DATE(e.created_at AT TIME ZONE 'America/Santiago')
         ORDER BY day ASC
       `,
       [periodDays]
@@ -354,22 +358,24 @@ export const getAnalyticsProducts = async ({ days = 30, limit = 20 } = {}) => {
   const result = await pool.query(
     `
       SELECT
-        product_id,
-        product_code,
-        COUNT(*) FILTER (WHERE event_type = 'PRODUCT_VIEW')::int AS views,
-        COUNT(*) FILTER (WHERE event_type = 'PRODUCT_CLICK')::int AS clicks,
-        COUNT(*) FILTER (WHERE event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
-        COUNT(DISTINCT session_id)::int AS unique_sessions
-      FROM analytics_events
-      WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
-        AND product_code IS NOT NULL
-        AND event_type IN (
+        e.product_id,
+        e.product_code,
+        COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK')::int AS clicks,
+        COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
+        COUNT(DISTINCT e.session_id)::int AS unique_sessions
+      FROM analytics_events e
+      JOIN analytics_sessions s ON s.id = e.session_id
+      WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND s.is_suspected_bot = FALSE
+        AND e.product_code IS NOT NULL
+        AND e.event_type IN (
           'PRODUCT_VIEW',
           'PRODUCT_CLICK',
           'WHATSAPP_CLICK'
         )
-      GROUP BY product_id, product_code
-      ORDER BY views DESC, clicks DESC, product_code ASC
+      GROUP BY e.product_id, e.product_code
+      ORDER BY views DESC, clicks DESC, e.product_code ASC
       LIMIT $2
     `,
     [periodDays, rowLimit]
@@ -388,16 +394,18 @@ export const getAnalyticsCollections = async ({ days = 30, limit = 20 } = {}) =>
   const result = await pool.query(
     `
       SELECT
-        collection_slug,
+        e.collection_slug,
         COUNT(*)::int AS interactions,
-        COUNT(*) FILTER (WHERE event_type = 'COLLECTION_VIEW')::int AS views,
-        COUNT(*) FILTER (WHERE event_type = 'COLLECTION_CLICK')::int AS clicks,
-        COUNT(DISTINCT session_id)::int AS unique_sessions
-      FROM analytics_events
-      WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
-        AND collection_slug IS NOT NULL
-      GROUP BY collection_slug
-      ORDER BY views DESC, clicks DESC, interactions DESC, collection_slug ASC
+        COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_VIEW')::int AS views,
+        COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_CLICK')::int AS clicks,
+        COUNT(DISTINCT e.session_id)::int AS unique_sessions
+      FROM analytics_events e
+      JOIN analytics_sessions s ON s.id = e.session_id
+      WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND s.is_suspected_bot = FALSE
+        AND e.collection_slug IS NOT NULL
+      GROUP BY e.collection_slug
+      ORDER BY views DESC, clicks DESC, interactions DESC, e.collection_slug ASC
       LIMIT $2
     `,
     [periodDays, rowLimit]
@@ -423,6 +431,7 @@ export const getAnalyticsLocations = async ({ days = 30, limit = 50 } = {}) => {
         COUNT(*)::int AS sessions
       FROM analytics_sessions
       WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND is_suspected_bot = FALSE
       GROUP BY
         country_code,
         region_code,
@@ -447,16 +456,18 @@ export const getAnalyticsSearches = async ({ days = 30, limit = 50 } = {}) => {
   const result = await pool.query(
     `
       SELECT
-        search_term,
-        COUNT(*) FILTER (WHERE event_type = 'SEARCH')::int AS searches,
-        COUNT(*) FILTER (WHERE event_type = 'SEARCH_NO_RESULTS')::int AS no_results,
-        COUNT(DISTINCT session_id)::int AS unique_sessions
-      FROM analytics_events
-      WHERE created_at >= NOW() - ($1::int * INTERVAL '1 day')
-        AND search_term IS NOT NULL
-        AND event_type IN ('SEARCH', 'SEARCH_NO_RESULTS')
-      GROUP BY search_term
-      ORDER BY searches DESC, no_results DESC, search_term ASC
+        e.search_term,
+        COUNT(*) FILTER (WHERE e.event_type = 'SEARCH')::int AS searches,
+        COUNT(*) FILTER (WHERE e.event_type = 'SEARCH_NO_RESULTS')::int AS no_results,
+        COUNT(DISTINCT e.session_id)::int AS unique_sessions
+      FROM analytics_events e
+      JOIN analytics_sessions s ON s.id = e.session_id
+      WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND s.is_suspected_bot = FALSE
+        AND e.search_term IS NOT NULL
+        AND e.event_type IN ('SEARCH', 'SEARCH_NO_RESULTS')
+      GROUP BY e.search_term
+      ORDER BY searches DESC, no_results DESC, e.search_term ASC
       LIMIT $2
     `,
     [periodDays, rowLimit]
@@ -481,6 +492,7 @@ export const getAnalyticsSources = async ({ days = 30, limit = 30 } = {}) => {
         COUNT(*)::int AS sessions
       FROM analytics_sessions
       WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND is_suspected_bot = FALSE
       GROUP BY
         COALESCE(NULLIF(utm_source, ''), 'direct'),
         NULLIF(utm_medium, ''),
@@ -507,6 +519,7 @@ export const getAnalyticsDevices = async ({ days = 30 } = {}) => {
         COUNT(*)::int AS sessions
       FROM analytics_sessions
       WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND is_suspected_bot = FALSE
       GROUP BY COALESCE(NULLIF(device_type, ''), 'unknown')
       ORDER BY sessions DESC, device_type ASC
     `,
