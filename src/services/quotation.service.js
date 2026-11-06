@@ -4162,6 +4162,11 @@ export const listQuotations = async ({ query = {} } = {}) => {
     `
       SELECT
         q.*,
+        EXISTS (
+          SELECT 1
+          FROM quotation_bathroom_optimizations qbo
+          WHERE qbo.quotation_id = q.id
+        ) AS is_bathroom_quotation,
         o.order_number AS converted_order_number,
         u.first_name AS created_by_first_name,
         u.last_name AS created_by_last_name,
