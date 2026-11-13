@@ -130,6 +130,335 @@ const getValidatedRelbaseRut = (rut) => {
 
 };
 
+/* =========================================
+   ENRIQUECER UBICACIÓN CLIENTE RELBASE
+
+   GET /api/v2/clientes devuelve city_id y
+   commune_id, pero no siempre devuelve las
+   etiquetas visibles. Para Showroom resolvemos
+   esos IDs solo cuando se consulta un cliente
+   exacto por RUT, evitando llamadas adicionales
+   durante la búsqueda incremental.
+========================================= */
+
+const getRelbaseDetailData = async (
+  path,
+  id
+) => {
+  if (
+    id === undefined ||
+    id === null ||
+    String(id).trim() === ""
+  ) {
+    return null;
+  }
+
+  try {
+    const result =
+      await relbaseRequest(
+        `${path}/${encodeURIComponent(
+          String(id).trim()
+        )}`
+      );
+
+    const body =
+      result?.data || null;
+
+    const data =
+      body?.data ??
+      body;
+
+    if (
+      data &&
+      typeof data === "object" &&
+      !Array.isArray(data)
+    ) {
+      return data;
+    }
+
+    return null;
+  } catch (error) {
+    /*
+     * La ubicación complementa el cliente.
+     * Si Relbase no permite consultar alguno
+     * de los catálogos, no bloqueamos la
+     * selección del cliente en Showroom.
+     */
+    console.warn(
+      "No fue posible resolver detalle de ubicación Relbase:",
+      {
+        path,
+        id,
+        status:
+          error?.status || null,
+        message:
+          error?.message ||
+          "Error desconocido",
+      }
+    );
+
+    return null;
+  }
+};
+
+const firstLocationText = (
+  ...values
+) => {
+  for (const value of values) {
+    if (
+      value === undefined ||
+      value === null
+    ) {
+      continue;
+    }
+
+    if (
+      typeof value === "object"
+    ) {
+      const nested =
+        String(
+          value?.name ??
+          value?.label ??
+          value?.description ??
+          ""
+        ).trim();
+
+      if (nested) {
+        return nested;
+      }
+
+      continue;
+    }
+
+    const text =
+      String(value).trim();
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return "";
+};
+
+const getCommuneFromFullAddress = (
+  fullAddress
+) => {
+  const parts =
+    String(fullAddress || "")
+      .split(",")
+      .map((part) =>
+        part.trim()
+      )
+      .filter(Boolean);
+
+  if (parts.length < 2) {
+    return "";
+  }
+
+  return parts[
+    parts.length - 1
+  ];
+};
+
+const getLocalRegionByCommuneName =
+  async (communeName) => {
+    const normalizedCommune =
+      String(communeName || "").trim();
+
+    if (!normalizedCommune) {
+      return "";
+    }
+
+    try {
+      const result =
+        await pool.query(
+          `
+            SELECT
+              r.name AS region_name
+            FROM public.comunas c
+            INNER JOIN public.regions r
+              ON r.id = c.region_id
+            WHERE
+              regexp_replace(
+                translate(
+                  lower(trim(c.name)),
+                  'áéíóúüñ',
+                  'aeiouun'
+                ),
+                '\\s+',
+                ' ',
+                'g'
+              ) =
+              regexp_replace(
+                translate(
+                  lower(trim($1::text)),
+                  'áéíóúüñ',
+                  'aeiouun'
+                ),
+                '\\s+',
+                ' ',
+                'g'
+              )
+            LIMIT 1
+          `,
+          [
+            normalizedCommune,
+          ]
+        );
+
+      return String(
+        result.rows[0]?.region_name ||
+        ""
+      ).trim();
+    } catch (error) {
+      /*
+       * La región complementa la ubicación.
+       * Si el catálogo local no está disponible,
+       * mantenemos el flujo existente sin bloquear
+       * la selección del cliente.
+       */
+      console.warn(
+        "No fue posible resolver región local por comuna:",
+        {
+          commune:
+            normalizedCommune,
+          message:
+            error?.message ||
+            "Error desconocido",
+        }
+      );
+
+      return "";
+    }
+  };
+
+const enrichRelbaseCustomerLocation =
+  async (customer) => {
+    if (
+      !customer ||
+      typeof customer !== "object"
+    ) {
+      return customer;
+    }
+
+    const currentCommune =
+      firstLocationText(
+        customer.commune_name,
+        customer.commune
+      );
+
+    const currentCity =
+      firstLocationText(
+        customer.city_name,
+        customer.city
+      );
+
+    const currentRegion =
+      firstLocationText(
+        customer.region_name,
+        customer.region
+      );
+
+    const cityId =
+      customer.city_id ??
+      customer.city?.id ??
+      null;
+
+    const communeId =
+      customer.commune_id ??
+      customer.commune?.id ??
+      null;
+
+    if (
+      currentCommune &&
+      currentCity &&
+      currentRegion
+    ) {
+      return customer;
+    }
+
+    const [
+      cityDetail,
+      communeDetail,
+    ] = await Promise.all([
+      !currentCity && cityId
+        ? getRelbaseDetailData(
+            "/api/v2/ciudades",
+            cityId
+          )
+        : Promise.resolve(null),
+      !currentCommune && communeId
+        ? getRelbaseDetailData(
+            "/api/v2/comunas",
+            communeId
+          )
+        : Promise.resolve(null),
+    ]);
+
+    const communeName =
+      currentCommune ||
+      firstLocationText(
+        communeDetail?.name,
+        communeDetail?.commune,
+        communeDetail?.commune_name,
+        communeDetail?.description
+      ) ||
+      getCommuneFromFullAddress(
+        customer.full_address
+      );
+
+    const cityName =
+      currentCity ||
+      firstLocationText(
+        cityDetail?.name,
+        cityDetail?.city,
+        cityDetail?.city_name,
+        cityDetail?.description,
+        communeDetail?.city_name,
+        communeDetail?.city
+      );
+
+    const relbaseRegionName =
+      currentRegion ||
+      firstLocationText(
+        cityDetail?.region_name,
+        cityDetail?.region,
+        cityDetail?.region_description,
+        communeDetail?.region_name,
+        communeDetail?.region,
+        communeDetail?.region_description
+      );
+
+    const regionName =
+      relbaseRegionName ||
+      await getLocalRegionByCommuneName(
+        communeName
+      );
+
+    return {
+      ...customer,
+      ...(communeName
+        ? {
+            commune_name:
+              communeName,
+          }
+        : {}),
+      ...(cityName
+        ? {
+            city_name:
+              cityName,
+          }
+        : {}),
+      ...(regionName
+        ? {
+            region_name:
+              regionName,
+          }
+        : {}),
+    };
+  };
+
 /* =========================================*
 
 *   BUSCAR CLIENTE RELBASE POR RUT*
@@ -248,11 +577,21 @@ export const findRelbaseCustomerByRutService =
 
         if (customer) {
 
+          const enrichedCustomer =
+
+            await enrichRelbaseCustomerLocation(
+
+              customer
+
+            );
+
           return {
 
             found: true,
 
-            customer,
+            customer:
+
+              enrichedCustomer,
 
           };
 
