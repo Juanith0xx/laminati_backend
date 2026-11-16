@@ -169,6 +169,161 @@ const normalizeSearchText = (value) => {
 
 };
 
+/* =========================================
+   BÚSQUEDA COMERCIAL / TÉCNICA
+
+   La búsqueda pública entiende términos habituales
+   del cliente sin exigir que coincidan literalmente
+   con el nombre italiano del producto.
+
+   Ejemplos:
+   - Formica negra -> Nero
+   - Lámina blanca -> Bianco
+   - Lámina negra mate -> Nero + Mate/Sei
+
+   STRAT-, LAB- y MEG- se tratan por una ruta rápida
+   de prefijo SKU y requieren permiso de Admin/Vendedor.
+========================================= */
+
+const TECHNICAL_PRODUCT_SEARCH_PATTERN =
+  /^(STRAT|LAB|MEG)-/i;
+
+const GENERIC_PRODUCT_SEARCH_TOKENS =
+  new Set([
+    "formica",
+    "lamina",
+    "laminas",
+    "laminado",
+    "laminados",
+    "hpl",
+  ]);
+
+const PRODUCT_SEARCH_ALIASES = {
+  negro: ["nero", "negro", "negra"],
+  negra: ["nero", "negro", "negra"],
+  blanco: ["bianco", "blanco", "blanca"],
+  blanca: ["bianco", "blanco", "blanca"],
+  gris: ["grigio", "gris"],
+  grises: ["grigio", "gris"],
+  mate: ["mate", "sei"],
+  brillante: ["lucida", "brillante"],
+  brillo: ["lucida", "brillo"],
+  formica: ["hpl", "laminado", "laminados"],
+  lamina: ["hpl", "laminado", "laminados"],
+  laminas: ["hpl", "laminado", "laminados"],
+  laminado: ["hpl", "laminado", "laminados"],
+  laminados: ["hpl", "laminado", "laminados"],
+  hpl: ["hpl", "laminado", "laminados"],
+};
+
+const SEARCH_DOCUMENT_SQL = `
+  unaccent(
+    LOWER(
+      CONCAT_WS(
+        ' ',
+        COALESCE(name, ''),
+        COALESCE(sku, ''),
+        COALESCE(internal_code, ''),
+        COALESCE(category, ''),
+        COALESCE(brand, ''),
+        COALESCE(collection, ''),
+        COALESCE(color, ''),
+        COALESCE(finish, ''),
+        COALESCE(texture, ''),
+        COALESCE(short_description, '')
+      )
+    )
+  )
+`;
+
+const normalizeSearchToken = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const isTechnicalProductSearch = (value) =>
+  TECHNICAL_PRODUCT_SEARCH_PATTERN.test(
+    normalizeSearchText(value)
+  );
+
+const buildSemanticSearchGroups = (value) => {
+  const tokens = normalizeSearchToken(value)
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const meaningfulTokens = tokens.filter(
+    (token) =>
+      !GENERIC_PRODUCT_SEARCH_TOKENS.has(
+        token
+      )
+  );
+
+  const sourceTokens =
+    meaningfulTokens.length > 0
+      ? meaningfulTokens
+      : tokens;
+
+  return sourceTokens
+    .slice(0, 5)
+    .map((token) => {
+      const alternatives =
+        PRODUCT_SEARCH_ALIASES[token] ||
+        [token];
+
+      return [
+        ...new Set(
+          alternatives
+            .map(normalizeSearchToken)
+            .filter(Boolean)
+        ),
+      ].slice(0, 4);
+    });
+};
+
+const appendSemanticSearchConditions = (
+  groups,
+  values
+) => {
+  if (!Array.isArray(groups) || groups.length === 0) {
+    return "";
+  }
+
+  return groups
+    .map((alternatives) => {
+      const clauses = alternatives.map(
+        (term) => {
+          values.push(term);
+
+          const parameter =
+            `$${values.length}`;
+
+          return `
+            ${SEARCH_DOCUMENT_SQL}
+              LIKE '%' ||
+                unaccent(LOWER(${parameter})) ||
+                '%'
+          `;
+        }
+      );
+
+      return `( ${clauses.join(" OR ")} )`;
+    })
+    .join(" AND ");
+};
+
+const getPrimarySemanticSearchTerm = (
+  groups,
+  fallback
+) =>
+  groups?.[0]?.[0] ||
+  normalizeSearchText(fallback);
+
 
 /* =========================================
    MEDIA PÚBLICA ESTABLE PARA SEO
@@ -716,6 +871,140 @@ const attachPublicImagesToProducts =
   };
 
 /* =========================================
+   IMAGEN LIGERA PARA AUTOCOMPLETADO
+
+   El buscador solo necesita una miniatura por producto.
+   Evitamos generar thumbnail + card + detail para cada
+   sugerencia, reduciendo trabajo de Storage y latencia.
+========================================= */
+
+const attachSearchSuggestionImages = async (
+  products
+) => {
+  if (
+    !Array.isArray(products) ||
+    products.length === 0
+  ) {
+    return [];
+  }
+
+  const productIds = products.map(
+    (product) => product.id
+  );
+
+  const result = await pool.query(
+    `
+      SELECT DISTINCT ON (product_id)
+        id,
+        product_id,
+        image_url,
+        alt_text,
+        storage_provider,
+        thumbnail_key,
+        card_key,
+        detail_key,
+        is_primary,
+        sort_order,
+        created_at
+      FROM product_images
+      WHERE product_id = ANY($1::uuid[])
+      ORDER BY
+        product_id ASC,
+        is_primary DESC,
+        sort_order ASC,
+        created_at ASC
+    `,
+    [productIds]
+  );
+
+  const imageEntries = await Promise.all(
+    result.rows.map(async (image) => {
+      if (
+        image.storage_provider !==
+        "RAILWAY"
+      ) {
+        return [
+          image.product_id,
+          {
+            url: image.image_url || null,
+            alt: image.alt_text || null,
+          },
+        ];
+      }
+
+      const storageKey =
+        image.thumbnail_key ||
+        image.card_key ||
+        image.detail_key;
+
+      if (!storageKey) {
+        return [
+          image.product_id,
+          {
+            url: null,
+            alt: image.alt_text || null,
+          },
+        ];
+      }
+
+      try {
+        const signedUrl =
+          await getProductImageSignedUrl(
+            storageKey
+          );
+
+        return [
+          image.product_id,
+          {
+            url: signedUrl,
+            alt: image.alt_text || null,
+          },
+        ];
+      } catch (error) {
+        console.error(
+          "Error generando miniatura de búsqueda:",
+          {
+            image_id: image.id,
+            product_id:
+              image.product_id,
+            error,
+          }
+        );
+
+        return [
+          image.product_id,
+          {
+            url: null,
+            alt: image.alt_text || null,
+          },
+        ];
+      }
+    })
+  );
+
+  const imageMap = new Map(
+    imageEntries
+  );
+
+  return products.map((product) => {
+    const image =
+      imageMap.get(product.id);
+
+    return {
+      ...product,
+      primary_image_url:
+        image?.url ||
+        product.primary_image_url ||
+        null,
+      primary_image_alt:
+        image?.alt ||
+        product.primary_image_alt ||
+        null,
+    };
+  });
+};
+
+/* =========================================
 
    LISTAR PRODUCTOS PÚBLICOS
 
@@ -986,86 +1275,100 @@ export const getProducts = async (req, res) => {
 
     }
 
-    /* =========================================*
+    /* =========================================
+       BÚSQUEDA
 
-*       BÚSQUEDA*
+       PÚBLICA:
+       - Nombre / categoría / marca / colección
+       - Color / acabado / textura
+       - SKU web / código interno
+       - Sinónimos comerciales en español
 
-*       - Nombre*
-
-*       - SKU*
-
-*       - Código interno*
-
-*       - Categoría*
-
-*       - Marca*
-
-*       - Colección*
-
-*       - Color*
-
-*       - Acabado*
-
-*       Ignora:*
-
-*       - Mayúsculas/minúsculas*
-
-*       - Tildes*
-
-*    ========================================= */
+       TÉCNICA:
+       - STRAT- / LAB- / MEG-
+       - Solo Admin y Vendedor
+       - Usa prefijo SKU directo para evitar búsquedas
+         amplias y mantener baja latencia
+    ========================================= */
 
     const normalizedSearch =
-
       normalizeSearchText(search);
 
+    const technicalSearch =
+      isTechnicalProductSearch(
+        normalizedSearch
+      );
+
+    const technicalSearchAllowed =
+      req.productSearchAccess?.allowed ===
+      true;
+
+    if (
+      technicalSearch &&
+      !technicalSearchAllowed
+    ) {
+      return res.status(200).json({
+        success: true,
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          total_pages: 0,
+          has_next_page: false,
+          has_previous_page:
+            page > 1,
+        },
+        filters: {
+          category: category || null,
+          brand: brand || null,
+          collection:
+            collection || null,
+          finish: finish || null,
+          search:
+            normalizedSearch || null,
+          featured:
+            featuredValue === null
+              ? null
+              : featuredValue,
+          in_stock:
+            inStockValue === null
+              ? null
+              : inStockValue,
+          sort,
+        },
+        products: [],
+      });
+    }
+
     if (normalizedSearch) {
+      if (technicalSearch) {
+        values.push(normalizedSearch);
 
-      values.push(normalizedSearch);
+        const searchParameter =
+          `$${values.length}`;
 
-      const searchParameter =
+        conditions.push(`
+          LOWER(COALESCE(sku, ''))
+            LIKE LOWER(${searchParameter}) || '%'
+        `);
+      } else {
+        const semanticGroups =
+          buildSemanticSearchGroups(
+            normalizedSearch
+          );
 
-        `$${values.length}`;
+        const semanticCondition =
+          appendSemanticSearchConditions(
+            semanticGroups,
+            values
+          );
 
-      conditions.push(`
-
-        (
-
-          unaccent(LOWER(COALESCE(name, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(sku, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(internal_code, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(category, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(brand, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(collection, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(color, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-          OR unaccent(LOWER(COALESCE(finish, '')))
-
-            LIKE '%' || unaccent(LOWER(${searchParameter})) || '%'
-
-        )
-
-      `);
-
+        if (semanticCondition) {
+          conditions.push(
+            semanticCondition
+          );
+        }
+      }
     }
 
     const whereClause =
@@ -1499,560 +1802,247 @@ export const getProductSearchSuggestions = async (
   try {
 
     const warehouseId =
-
       getWebWarehouseId();
 
     const query =
-
       normalizeSearchText(req.query.q);
 
     const requestedLimit =
-
       Number.parseInt(
-
         req.query.limit,
-
         10
-
       ) || DEFAULT_SUGGESTIONS_LIMIT;
 
     const limit = Math.min(
-
       Math.max(requestedLimit, 1),
-
       MAX_SUGGESTIONS_LIMIT
-
     );
 
-    /* =========================================*
-
-*       MÍNIMO DE CARACTERES*
-
-*    ========================================= */
-
     if (
-
       query.length <
-
       MIN_SEARCH_LENGTH
-
     ) {
-
       return res.status(200).json({
-
         success: true,
-
         query,
-
         minimum_characters:
-
           MIN_SEARCH_LENGTH,
-
         suggestions: [],
-
       });
-
     }
 
-   /* =========================================*
+    const technicalSearch =
+      isTechnicalProductSearch(query);
 
-*       BUSCAR SUGERENCIAS*
+    const technicalSearchAllowed =
+      req.productSearchAccess?.allowed ===
+      true;
 
-*    ========================================= */
+    /*
+     * Un visitante público que pruebe STRAT-/LAB-/MEG-
+     * obtiene respuesta inmediata sin recorrer catálogo,
+     * inventario ni Storage.
+     */
+    if (
+      technicalSearch &&
+      !technicalSearchAllowed
+    ) {
+      return res.status(200).json({
+        success: true,
+        query,
+        minimum_characters:
+          MIN_SEARCH_LENGTH,
+        count: 0,
+        suggestions: [],
+      });
+    }
+
+    const values = [warehouseId];
+
+    let searchCondition = "";
+    let rankTerm = query;
+
+    if (technicalSearch) {
+      values.push(query);
+
+      const parameter =
+        `$${values.length}`;
+
+      searchCondition = `
+        LOWER(COALESCE(sku, ''))
+          LIKE LOWER(${parameter}) || '%'
+      `;
+    } else {
+      const semanticGroups =
+        buildSemanticSearchGroups(query);
+
+      searchCondition =
+        appendSemanticSearchConditions(
+          semanticGroups,
+          values
+        );
+
+      rankTerm =
+        getPrimarySemanticSearchTerm(
+          semanticGroups,
+          query
+        );
+    }
+
+    values.push(rankTerm);
+    const rankParameter =
+      `$${values.length}`;
+
+    values.push(limit);
+    const limitParameter =
+      `$${values.length}`;
+
+    const visibilityCondition =
+      technicalSearch &&
+      technicalSearchAllowed
+        ? `(
+            v.allow_sale = TRUE
+            OR v.commercial_mode = 'PROJECT_ONLY'
+          )`
+        : "v.allow_sale = TRUE";
 
     const result = await pool.query(
-
       `
-
         WITH web_catalog AS (
-
           SELECT
-
             v.*,
-
             GREATEST(
-
               COALESCE(i.stock_quantity, 0)
-
               - COALESCE(i.reserved_quantity, 0)
-
               - COALESCE(i.safety_stock, 0)
-
               - COALESCE(ar.active_reserved, 0),
-
               0
-
             ) AS warehouse_available_web
-
           FROM vw_product_catalog v
-
           LEFT JOIN inventory i
-
             ON i.product_id = v.id
-
            AND i.relbase_warehouse_id = $1
-
           LEFT JOIN LATERAL (
-
             SELECT
-
               COALESCE(
-
                 SUM(ir.quantity),
-
                 0
-
               ) AS active_reserved
-
             FROM inventory_reservations ir
-
             WHERE ir.inventory_id = i.id
-
               AND ir.status = 'ACTIVE'
-
               AND (
-
                 ir.expires_at IS NULL
-
                 OR ir.expires_at > NOW()
-
               )
-
           ) ar ON TRUE
-
           WHERE v.is_active = TRUE
-
             AND v.is_published = TRUE
-
-            AND v.allow_sale = TRUE
-
+            AND ${visibilityCondition}
         ),
-
         ranked_products AS (
-
           SELECT
-
             id,
-
             sku,
-
             internal_code,
-
             name,
-
             slug,
-
             category,
-
             brand,
-
             collection,
-
             base_price,
-
             promotional_price,
-
             final_price,
-
             has_promotion,
-
+            commercial_mode,
             warehouse_available_web
-
               AS available_web,
-
             CASE
-
               WHEN warehouse_available_web > 0
-
                 THEN TRUE
-
               ELSE FALSE
-
             END AS in_stock,
-
             primary_image_url,
-
             primary_image_alt,
-
             CASE
-
-              /*
-
-                Coincidencia exacta SKU
-
-              */
-
-              WHEN
-
-                unaccent(
-
-                  LOWER(
-
-                    COALESCE(sku, '')
-
-                  )
-
-                )
-
-                =
-
-                unaccent(
-
-                  LOWER($2)
-
-                )
-
-              THEN 0
-
-              /*
-
-                Coincidencia exacta código interno
-
-              */
-
-              WHEN
-
-                unaccent(
-
-                  LOWER(
-
-                    COALESCE(
-
-                      internal_code,
-
-                      ''
-
-                    )
-
-                  )
-
-                )
-
-                =
-
-                unaccent(
-
-                  LOWER($2)
-
-                )
-
-              THEN 1
-
-              /*
-
-                Nombre comienza por la búsqueda
-
-              */
-
-              WHEN
-
-                unaccent(
-
-                  LOWER(
-
-                    COALESCE(name, '')
-
-                  )
-
-                )
-
-                LIKE
-
-                unaccent(
-
-                  LOWER($2)
-
-                ) || '%'
-
-              THEN 2
-
-              /*
-
-                SKU comienza por la búsqueda
-
-              */
-
-              WHEN
-
-                unaccent(
-
-                  LOWER(
-
-                    COALESCE(sku, '')
-
-                  )
-
-                )
-
-                LIKE
-
-                unaccent(
-
-                  LOWER($2)
-
-                ) || '%'
-
-              THEN 3
-
-              /*
-
-                Código interno comienza por búsqueda
-
-              */
-
-              WHEN
-
-                unaccent(
-
-                  LOWER(
-
-                    COALESCE(
-
-                      internal_code,
-
-                      ''
-
-                    )
-
-                  )
-
-                )
-
-                LIKE
-
-                unaccent(
-
-                  LOWER($2)
-
-                ) || '%'
-
-              THEN 4
-
-              /*
-
-                Nombre contiene la búsqueda
-
-              */
-
-              WHEN
-
-                unaccent(
-
-                  LOWER(
-
-                    COALESCE(name, '')
-
-                  )
-
-                )
-
-                LIKE
-
-                '%' ||
-
-                unaccent(
-
-                  LOWER($2)
-
-                ) ||
-
-                '%'
-
-              THEN 5
-
+              WHEN LOWER(COALESCE(sku, '')) =
+                   LOWER(${rankParameter})
+                THEN 0
+              WHEN LOWER(COALESCE(internal_code, '')) =
+                   LOWER(${rankParameter})
+                THEN 1
+              WHEN unaccent(LOWER(COALESCE(name, ''))) =
+                   unaccent(LOWER(${rankParameter}))
+                THEN 2
+              WHEN unaccent(LOWER(COALESCE(name, ''))) LIKE
+                   unaccent(LOWER(${rankParameter})) || '%'
+                THEN 3
+              WHEN LOWER(COALESCE(sku, '')) LIKE
+                   LOWER(${rankParameter}) || '%'
+                THEN 4
+              WHEN unaccent(LOWER(COALESCE(name, ''))) LIKE
+                   '%' || unaccent(LOWER(${rankParameter})) || '%'
+                THEN 5
               ELSE 6
-
             END AS search_rank
-
           FROM web_catalog
-
-          WHERE
-
-            (
-
-              unaccent(
-
-                LOWER(
-
-                  COALESCE(name, '')
-
-                )
-
-              )
-
-              LIKE
-
-              '%' ||
-
-              unaccent(
-
-                LOWER($2)
-
-              ) ||
-
-              '%'
-
-              OR
-
-              unaccent(
-
-                LOWER(
-
-                  COALESCE(sku, '')
-
-                )
-
-              )
-
-              LIKE
-
-              '%' ||
-
-              unaccent(
-
-                LOWER($2)
-
-              ) ||
-
-              '%'
-
-              OR
-
-              unaccent(
-
-                LOWER(
-
-                  COALESCE(
-
-                    internal_code,
-
-                    ''
-
-                  )
-
-                )
-
-              )
-
-              LIKE
-
-              '%' ||
-
-              unaccent(
-
-                LOWER($2)
-
-              ) ||
-
-              '%'
-
-            )
-
+          WHERE ${searchCondition}
         )
-
         SELECT
-
           id,
-
           sku,
-
           internal_code,
-
           name,
-
           slug,
-
           category,
-
           brand,
-
           collection,
-
           base_price,
-
           promotional_price,
-
           final_price,
-
           has_promotion,
-
+          commercial_mode,
           available_web,
-
           in_stock,
-
           primary_image_url,
-
           primary_image_alt
-
         FROM ranked_products
-
         ORDER BY
-
           search_rank ASC,
-
           in_stock DESC,
-
           name ASC
-
-        LIMIT $3
-
+        LIMIT ${limitParameter}
       `,
-
-      [
-
-        warehouseId,
-
-        query,
-
-        limit,
-
-      ]
-
+      values
     );
 
     const suggestions =
-      await attachPublicImagesToProducts(
+      await attachSearchSuggestionImages(
         result.rows
       );
 
     return res.status(200).json({
-
       success: true,
-
       query,
-
       minimum_characters:
-
         MIN_SEARCH_LENGTH,
-
       count: result.rows.length,
-
       suggestions,
-
     });
 
   } catch (error) {
 
     console.error(
-
       "Error obteniendo sugerencias de productos:",
-
       error
-
     );
 
     return res.status(500).json({
-
       success: false,
-
       message:
-
         "No fue posible buscar productos",
-
       code:
-
         "PRODUCT_SEARCH_SUGGESTIONS_ERROR",
-
     });
 
   }

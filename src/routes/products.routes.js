@@ -10,11 +10,16 @@ import {
 
 import {
   authenticate,
+  resolveTechnicalProductSearchAccess,
 } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.get("/", getProducts);
+router.get(
+  "/",
+  resolveTechnicalProductSearchAccess,
+  getProducts
+);
 
 /* =========================================
    AUTOCOMPLETADO DE PRODUCTOS
@@ -22,6 +27,7 @@ router.get("/", getProducts);
 
 router.get(
   "/search/suggestions",
+  resolveTechnicalProductSearchAccess,
   getProductSearchSuggestions
 );
 
