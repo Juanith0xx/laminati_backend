@@ -4,6 +4,10 @@ import {
   getProjectImageSignedUrl,
 } from "./projectImageStorage.service.js";
 
+import {
+  getProductImageSignedUrl,
+} from "./productImageStorage.service.js";
+
 
 function createServiceError(
   message,
@@ -295,6 +299,153 @@ async function resolveProjectImage(
       null,
     urls,
   };
+}
+
+
+/*
+ * Resuelve UNA sola imagen de catálogo para cada producto
+ * asociado a un proyecto.
+ *
+ * Rendimiento:
+ * - La consulta SQL selecciona previamente sólo la imagen
+ *   principal (o la primera disponible).
+ * - Para Railway Storage se firma únicamente una variante,
+ *   priorizando CARD.
+ * - No expone las keys privadas al frontend.
+ */
+async function hydrateProjectProductImage(
+  product
+) {
+  if (!product) {
+    return product;
+  }
+
+  const {
+    product_image_id,
+    product_image_url,
+    product_image_alt,
+    product_image_storage_provider,
+    product_image_thumbnail_key,
+    product_image_card_key,
+    product_image_detail_key,
+    product_image_is_primary,
+    product_image_sort_order,
+    ...cleanProduct
+  } = product;
+
+  if (!product_image_id) {
+    return {
+      ...cleanProduct,
+      primary_image_url: null,
+      primary_image_alt: null,
+      primary_image: null,
+    };
+  }
+
+  let resolvedUrl = null;
+
+  if (
+    product_image_storage_provider !==
+    "RAILWAY"
+  ) {
+    resolvedUrl =
+      product_image_url ||
+      null;
+  } else {
+    const storageKey =
+      product_image_card_key ||
+      product_image_detail_key ||
+      product_image_thumbnail_key ||
+      null;
+
+    if (storageKey) {
+      try {
+        resolvedUrl =
+          await getProductImageSignedUrl(
+            storageKey
+          );
+      } catch (error) {
+        console.error(
+          "Error generando URL de imagen para producto de proyecto:",
+          {
+            product_id:
+              cleanProduct.product_id ||
+              cleanProduct.id ||
+              null,
+            image_id:
+              product_image_id,
+            error,
+          }
+        );
+      }
+    }
+  }
+
+  const primaryImage = {
+    id:
+      product_image_id,
+    image_url:
+      product_image_storage_provider ===
+      "RAILWAY"
+        ? null
+        : product_image_url ||
+          null,
+    alt_text:
+      product_image_alt ||
+      null,
+    storage_provider:
+      product_image_storage_provider ||
+      null,
+    is_primary:
+      product_image_is_primary ===
+      true,
+    sort_order:
+      product_image_sort_order ??
+      0,
+
+    /*
+     * ProjectDetail prioriza card_url.
+     * Se conserva una sola URL resuelta para no firmar
+     * thumbnail/card/detail innecesariamente.
+     */
+    thumbnail_url:
+      resolvedUrl,
+    card_url:
+      resolvedUrl,
+    detail_url:
+      resolvedUrl,
+  };
+
+  return {
+    ...cleanProduct,
+    primary_image_url:
+      resolvedUrl,
+    primary_image_alt:
+      product_image_alt ||
+      null,
+    primary_image:
+      primaryImage,
+  };
+}
+
+
+async function hydrateProjectProductsImages(
+  products
+) {
+  if (
+    !Array.isArray(
+      products
+    ) ||
+    products.length === 0
+  ) {
+    return products || [];
+  }
+
+  return Promise.all(
+    products.map(
+      hydrateProjectProductImage
+    )
+  );
 }
 
 
@@ -728,12 +879,54 @@ export async function getAdminProjectById(
             p.sku,
             p.internal_code,
             p.name,
-            p.slug
+            p.slug,
+
+            pimg.id
+              AS product_image_id,
+            pimg.image_url
+              AS product_image_url,
+            pimg.alt_text
+              AS product_image_alt,
+            pimg.storage_provider
+              AS product_image_storage_provider,
+            pimg.thumbnail_key
+              AS product_image_thumbnail_key,
+            pimg.card_key
+              AS product_image_card_key,
+            pimg.detail_key
+              AS product_image_detail_key,
+            pimg.is_primary
+              AS product_image_is_primary,
+            pimg.sort_order
+              AS product_image_sort_order
 
           FROM project_products pp
 
           JOIN products p
             ON p.id = pp.product_id
+
+          LEFT JOIN LATERAL (
+            SELECT
+              pi.id,
+              pi.image_url,
+              pi.alt_text,
+              pi.storage_provider,
+              pi.thumbnail_key,
+              pi.card_key,
+              pi.detail_key,
+              pi.is_primary,
+              pi.sort_order
+            FROM product_images pi
+            WHERE
+              pi.product_id =
+              p.id
+            ORDER BY
+              pi.is_primary DESC,
+              pi.sort_order ASC,
+              pi.created_at ASC
+            LIMIT 1
+          ) pimg
+            ON TRUE
 
           WHERE pp.project_id = $1
 
@@ -775,7 +968,9 @@ export async function getAdminProjectById(
     images:
       resolvedImages,
     products:
-      productsResult.rows,
+      await hydrateProjectProductsImages(
+        productsResult.rows
+      ),
   };
 }
 
@@ -2112,12 +2307,54 @@ export async function getPublicProjectBySlug(
             p.sku,
             p.internal_code,
             p.name,
-            p.slug
+            p.slug,
+
+            pimg.id
+              AS product_image_id,
+            pimg.image_url
+              AS product_image_url,
+            pimg.alt_text
+              AS product_image_alt,
+            pimg.storage_provider
+              AS product_image_storage_provider,
+            pimg.thumbnail_key
+              AS product_image_thumbnail_key,
+            pimg.card_key
+              AS product_image_card_key,
+            pimg.detail_key
+              AS product_image_detail_key,
+            pimg.is_primary
+              AS product_image_is_primary,
+            pimg.sort_order
+              AS product_image_sort_order
 
           FROM project_products pp
 
           JOIN products p
             ON p.id = pp.product_id
+
+          LEFT JOIN LATERAL (
+            SELECT
+              pi.id,
+              pi.image_url,
+              pi.alt_text,
+              pi.storage_provider,
+              pi.thumbnail_key,
+              pi.card_key,
+              pi.detail_key,
+              pi.is_primary,
+              pi.sort_order
+            FROM product_images pi
+            WHERE
+              pi.product_id =
+              p.id
+            ORDER BY
+              pi.is_primary DESC,
+              pi.sort_order ASC,
+              pi.created_at ASC
+            LIMIT 1
+          ) pimg
+            ON TRUE
 
           WHERE pp.project_id = $1
 
@@ -2159,6 +2396,8 @@ export async function getPublicProjectBySlug(
     images:
       resolvedImages,
     products:
-      productsResult.rows,
+      await hydrateProjectProductsImages(
+        productsResult.rows
+      ),
   };
 }
