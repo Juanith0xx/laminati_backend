@@ -9,6 +9,7 @@ export const getCatalogFilters = async (req, res) => {
       categoriesResult,
       brandsResult,
       collectionsResult,
+      abetCollectionsResult,
       finishesResult,
       colorsResult,
     ] = await Promise.all([
@@ -54,6 +55,36 @@ export const getCatalogFilters = async (req, res) => {
       `),
 
       pool.query(`
+        SELECT
+          ac.id,
+          ac.name,
+          ac.slug,
+          ac.collection_type,
+          ac.sort_order,
+          COUNT(DISTINCT pac.product_id)::int AS product_count
+        FROM abet_collections ac
+        JOIN product_abet_collections pac
+          ON pac.abet_collection_id = ac.id
+        JOIN products p
+          ON p.id = pac.product_id
+        WHERE ac.is_active = TRUE
+          AND ac.show_in_filter = TRUE
+          AND p.is_active = TRUE
+          AND p.is_published = TRUE
+          AND p.sku ILIKE 'STRAT-%'
+        GROUP BY
+          ac.id,
+          ac.name,
+          ac.slug,
+          ac.collection_type,
+          ac.sort_order
+        HAVING COUNT(DISTINCT pac.product_id) > 0
+        ORDER BY
+          ac.sort_order ASC,
+          ac.name ASC
+      `),
+
+      pool.query(`
         SELECT DISTINCT
           finish
         FROM vw_product_catalog
@@ -85,6 +116,7 @@ export const getCatalogFilters = async (req, res) => {
         categories: categoriesResult.rows,
         brands: brandsResult.rows,
         collections: collectionsResult.rows,
+        abet_collections: abetCollectionsResult.rows,
         finishes: finishesResult.rows.map(
           (item) => item.finish
         ),

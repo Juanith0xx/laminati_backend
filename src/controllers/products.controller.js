@@ -1024,6 +1024,8 @@ export const getProducts = async (req, res) => {
 
       collection,
 
+      abet_collection,
+
       finish,
 
       search,
@@ -1211,6 +1213,31 @@ export const getProducts = async (req, res) => {
 
     }
 
+    /* =========================================
+       COLECCIÓN OFICIAL ABET
+
+       Se mantiene separado de collection para no
+       alterar las colecciones comerciales/legacy.
+    ========================================= */
+
+    if (abet_collection) {
+
+      values.push(abet_collection);
+
+      conditions.push(`
+        EXISTS (
+          SELECT 1
+          FROM product_abet_collections pac
+          JOIN abet_collections ac
+            ON ac.id = pac.abet_collection_id
+          WHERE pac.product_id = web_catalog.id
+            AND ac.is_active = TRUE
+            AND LOWER(ac.slug) = LOWER($${values.length})
+        )
+      `);
+
+    }
+
     /* =========================================*
 
 *       ACABADO*
@@ -1323,6 +1350,8 @@ export const getProducts = async (req, res) => {
           brand: brand || null,
           collection:
             collection || null,
+          abet_collection:
+            abet_collection || null,
           finish: finish || null,
           search:
             normalizedSearch || null,
@@ -1702,6 +1731,9 @@ export const getProducts = async (req, res) => {
         brand: brand || null,
 
         collection: collection || null,
+
+        abet_collection:
+          abet_collection || null,
 
         finish: finish || null,
 
