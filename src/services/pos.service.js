@@ -62,6 +62,28 @@ const POS_MANUAL_SERVICE_TAX_RATE = Number(
     19
 );
 
+/*
+ * Conversión de cotizaciones PROJECT:
+ * SERVICE -> SERV-HPL
+ * OTHER   -> INS-HPL
+ *
+ * taxDocument.service.js resolverá/creará estos productos técnicos
+ * en Relbase al preparar el DTE.
+ */
+const PROJECT_SERVICE_SKU = String(
+  process.env.POS_MANUAL_SERVICE_SKU ||
+    "SERV-HPL"
+)
+  .trim()
+  .toUpperCase();
+
+const PROJECT_SUPPLY_SKU = String(
+  process.env.POS_MANUAL_SUPPLY_SKU ||
+    "INS-HPL"
+)
+  .trim()
+  .toUpperCase();
+
 const getManualServiceRelbaseProductId = () => {
   const value = Number(
     process.env.RELBASE_MANUAL_SERVICE_PRODUCT_ID
@@ -1832,6 +1854,1037 @@ export const ensurePosInvoiceCustomer = async ({
     relbase_customer_id: relbaseCustomerId,
   };
 };
+
+
+const getExistingBackofficeSaleByIdempotencyKey =
+  async (
+    client,
+    idempotencyKey
+  ) => {
+    const result =
+      await client.query(
+        `
+          SELECT
+            p.id AS payment_id,
+            p.order_id,
+            p.status AS payment_status,
+            p.amount,
+            p.external_reference,
+            p.amount_received,
+            p.change_due,
+            p.confirmed_at,
+            p.confirmed_by,
+            pm.code AS payment_method,
+            pp.code AS provider_code,
+            o.order_number,
+            o.source,
+            o.status AS order_status,
+            o.payment_status AS order_payment_status,
+            o.fulfillment_status,
+            o.subtotal,
+            o.discount_total,
+            o.shipping_total,
+            o.tax_total,
+            o.total,
+            o.currency,
+            o.created_at
+          FROM payments p
+          INNER JOIN orders o
+            ON o.id = p.order_id
+          INNER JOIN payment_methods pm
+            ON pm.id = p.payment_method_id
+          INNER JOIN payment_providers pp
+            ON pp.id = p.provider_id
+          WHERE p.idempotency_key = $1
+          LIMIT 1
+        `,
+        [idempotencyKey]
+      );
+
+    if (result.rowCount === 0) {
+      return null;
+    }
+
+    const sale =
+      result.rows[0];
+
+    if (
+      sale.provider_code !==
+        POS_PROVIDER_CODE ||
+      sale.source !==
+        "BACKOFFICE"
+    ) {
+      throw createServiceError(
+        "La clave de idempotencia ya fue utilizada por otra operación",
+        409,
+        "IDEMPOTENCY_KEY_CONFLICT"
+      );
+    }
+
+    const itemsResult =
+      await client.query(
+        `
+          SELECT
+            id,
+            product_id,
+            sku,
+            product_name,
+            product_code,
+            finish,
+            reference_code,
+            quantity,
+            unit_price,
+            discount_amount,
+            tax_rate,
+            line_subtotal,
+            line_total,
+            created_at
+          FROM order_items
+          WHERE order_id = $1
+          ORDER BY created_at ASC, id ASC
+        `,
+        [sale.order_id]
+      );
+
+    return {
+      order: {
+        id:
+          sale.order_id,
+        order_number:
+          sale.order_number,
+        status:
+          sale.order_status,
+        payment_status:
+          sale.order_payment_status,
+        fulfillment_status:
+          sale.fulfillment_status,
+        subtotal:
+          sale.subtotal,
+        discount_total:
+          sale.discount_total,
+        shipping_total:
+          sale.shipping_total,
+        tax_total:
+          sale.tax_total,
+        total:
+          sale.total,
+        currency:
+          sale.currency,
+        source:
+          sale.source,
+        created_at:
+          sale.created_at,
+      },
+      payment: {
+        id:
+          sale.payment_id,
+        method:
+          sale.payment_method,
+        provider:
+          sale.provider_code,
+        status:
+          sale.payment_status,
+        amount:
+          sale.amount,
+        external_reference:
+          sale.external_reference,
+        amount_received:
+          sale.amount_received,
+        change_due:
+          sale.change_due,
+        confirmed_at:
+          sale.confirmed_at,
+        confirmed_by:
+          sale.confirmed_by,
+      },
+      items:
+        itemsResult.rows,
+      reservations: [],
+    };
+  };
+
+
+const normalizeProjectSaleLine =
+  async (
+    client,
+    line
+  ) => {
+    const lineType =
+      String(
+        line?.line_type ||
+          ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const grossTotal =
+      roundMoney(
+        line?.line_total_gross
+      );
+
+    if (
+      grossTotal === null ||
+      grossTotal < 0
+    ) {
+      throw createServiceError(
+        "La línea PROJECT contiene un total inválido",
+        409,
+        "PROJECT_LINE_TOTAL_INVALID"
+      );
+    }
+
+    const taxRate =
+      Number(
+        line?.tax_rate ??
+          19
+      );
+
+    if (
+      !Number.isFinite(
+        taxRate
+      ) ||
+      taxRate < 0
+    ) {
+      throw createServiceError(
+        "La línea PROJECT contiene una tasa de IVA inválida",
+        409,
+        "PROJECT_LINE_TAX_RATE_INVALID"
+      );
+    }
+
+    let product = null;
+
+    if (
+      line?.product_id
+    ) {
+      const result =
+        await client.query(
+          `
+            SELECT
+              id,
+              sku,
+              internal_code,
+              name,
+              finish,
+              relbase_product_id
+            FROM products
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [
+            line.product_id,
+          ]
+        );
+
+      product =
+        result.rows[0] ||
+        null;
+    }
+
+    let productId = null;
+    let sku = null;
+    let productName =
+      String(
+        line?.description ||
+          ""
+      ).trim();
+    let productCode =
+      String(
+        line?.code ||
+          ""
+      ).trim() ||
+      null;
+    let referenceCode =
+      String(
+        line?.format_label ||
+          line?.code ||
+          ""
+      ).trim() ||
+      null;
+    let finish =
+      String(
+        line?.finish ||
+          ""
+      ).trim() ||
+      null;
+
+    if (
+      lineType ===
+      "PRODUCT"
+    ) {
+      if (!product) {
+        throw createServiceError(
+          `No fue posible resolver el producto PROJECT ${productName || productCode || ""}`,
+          409,
+          "PROJECT_PRODUCT_NOT_FOUND"
+        );
+      }
+
+      productId =
+        product.id;
+      sku =
+        product.sku;
+      productName =
+        productName ||
+        product.name ||
+        product.sku;
+      productCode =
+        productCode ||
+        product.internal_code ||
+        product.sku;
+      referenceCode =
+        referenceCode ||
+        product.sku;
+      finish =
+        finish ||
+        product.finish ||
+        null;
+    } else if (
+      lineType ===
+      "SERVICE"
+    ) {
+      sku =
+        PROJECT_SERVICE_SKU;
+      productName =
+        productName ||
+        "Servicio HPL";
+      productCode =
+        PROJECT_SERVICE_SKU;
+      referenceCode =
+        referenceCode ||
+        PROJECT_SERVICE_SKU;
+    } else {
+      /*
+       * OTHER se considera insumo/cargo técnico.
+       * El DTE usa INS-HPL como producto técnico Relbase.
+       */
+      sku =
+        PROJECT_SUPPLY_SKU;
+      productName =
+        productName ||
+        "Insumo HPL";
+      productCode =
+        PROJECT_SUPPLY_SKU;
+      referenceCode =
+        referenceCode ||
+        PROJECT_SUPPLY_SKU;
+    }
+
+    let quantity =
+      Number(
+        line?.quantity ??
+          1
+      );
+
+    let unitPrice =
+      roundMoney(
+        line?.unit_price_gross
+      );
+
+    const pricingMode =
+      String(
+        line?.pricing_mode ||
+          ""
+      )
+        .trim()
+        .toUpperCase();
+
+    /*
+     * TOTAL permite total manual sin relación cantidad × unit_price.
+     * Para el DTE lo representamos como una línea única para conservar
+     * exactamente el valor comercial aprobado.
+     */
+    if (
+      pricingMode === "TOTAL"
+    ) {
+      quantity = 1;
+      unitPrice =
+        grossTotal;
+    }
+
+    if (
+      !Number.isFinite(
+        quantity
+      ) ||
+      quantity <= 0
+    ) {
+      quantity = 1;
+    }
+
+    if (
+      unitPrice === null ||
+      unitPrice < 0
+    ) {
+      unitPrice =
+        roundMoney(
+          grossTotal /
+          quantity
+        );
+    }
+
+    const expected =
+      roundMoney(
+        unitPrice *
+        quantity
+      );
+
+    /*
+     * Evita que redondeos o TOTAL manual produzcan un mismatch
+     * posterior en taxDocument.service.
+     */
+    if (
+      Math.abs(
+        Number(expected) -
+        Number(grossTotal)
+      ) > 1
+    ) {
+      quantity = 1;
+      unitPrice =
+        grossTotal;
+    }
+
+    return {
+      product_id:
+        productId,
+      sku,
+      product_name:
+        productName,
+      product_code:
+        productCode,
+      finish,
+      reference_code:
+        referenceCode,
+      quantity,
+      unit_price:
+        unitPrice,
+      discount_amount: 0,
+      tax_rate:
+        taxRate,
+      line_subtotal:
+        grossTotal,
+      line_total:
+        grossTotal,
+    };
+  };
+
+
+/*
+ * Venta BACKOFFICE para cotización PROJECT.
+ *
+ * Diferencia clave con POS:
+ * - no exige stock;
+ * - no crea reservas;
+ * - no recalcula precios;
+ * - usa exclusivamente el snapshot persistido en quotation_project_lines.
+ */
+export const createBackofficeProjectSale =
+  async ({
+    cashierUserId,
+    quotation,
+    projectLines,
+    documentType,
+    relbaseCustomerId = null,
+    payment = {},
+  }) => {
+    const cashierId =
+      assertUuid(
+        cashierUserId,
+        "cashierUserId"
+      );
+
+    const idempotencyKey =
+      assertUuid(
+        quotation
+          .conversion_idempotency_key,
+        "conversion_idempotency_key"
+      );
+
+    const normalizedDocumentType =
+      String(
+        documentType ||
+          quotation
+            .intended_document_type ||
+          ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      ![
+        "FACTURA",
+        "BOLETA",
+      ].includes(
+        normalizedDocumentType
+      )
+    ) {
+      throw createServiceError(
+        "Tipo de documento tributario inválido",
+        400,
+        "PROJECT_DOCUMENT_TYPE_INVALID"
+      );
+    }
+
+    const paymentMethod =
+      normalizePaymentMethod(
+        payment?.method
+      );
+
+    if (
+      !POS_PAYMENT_METHODS.has(
+        paymentMethod
+      )
+    ) {
+      throw createServiceError(
+        "Método de pago inválido. Usa CASH, DEBIT_CARD, CREDIT_CARD o MANUAL_BANK_TRANSFER",
+        400,
+        "POS_PAYMENT_METHOD_INVALID"
+      );
+    }
+
+    const externalReference =
+      toOptionalString(
+        payment
+          ?.external_reference
+      );
+
+    if (
+      paymentMethod !==
+        "CASH" &&
+      !externalReference
+    ) {
+      throw createServiceError(
+        "El pago requiere referencia o voucher",
+        400,
+        "POS_PAYMENT_REFERENCE_REQUIRED"
+      );
+    }
+
+    if (
+      !Array.isArray(
+        projectLines
+      ) ||
+      projectLines.length === 0
+    ) {
+      throw createServiceError(
+        "La cotización PROJECT no posee líneas",
+        409,
+        "QUOTATION_PROJECT_LINES_MISSING"
+      );
+    }
+
+    const client =
+      await pool.connect();
+
+    try {
+      await client.query(
+        "BEGIN"
+      );
+
+      const existing =
+        await getExistingBackofficeSaleByIdempotencyKey(
+          client,
+          idempotencyKey
+        );
+
+      if (existing) {
+        await client.query(
+          "COMMIT"
+        );
+
+        return {
+          created: false,
+          already_existed:
+            true,
+          idempotency_key:
+            idempotencyKey,
+          ...existing,
+        };
+      }
+
+      const configuration =
+        await getPosConfiguration(
+          client,
+          paymentMethod
+        );
+
+      const resolvedItems =
+        [];
+
+      for (
+        const line
+        of projectLines
+      ) {
+        resolvedItems.push(
+          await normalizeProjectSaleLine(
+            client,
+            line
+          )
+        );
+      }
+
+      const subtotal =
+        roundMoney(
+          resolvedItems.reduce(
+            (sum, item) =>
+              sum +
+              Number(
+                item.line_subtotal ||
+                  0
+              ),
+            0
+          )
+        );
+
+      const discountTotal = 0;
+
+      const total =
+        roundMoney(
+          resolvedItems.reduce(
+            (sum, item) =>
+              sum +
+              Number(
+                item.line_total ||
+                  0
+              ),
+            0
+          )
+        );
+
+      const taxTotal =
+        roundMoney(
+          resolvedItems.reduce(
+            (
+              sum,
+              item
+            ) => {
+              const rate =
+                Number(
+                  item.tax_rate ||
+                    0
+                );
+
+              if (
+                rate <= 0
+              ) {
+                return sum;
+              }
+
+              const net =
+                roundMoney(
+                  Number(
+                    item.line_total
+                  ) /
+                  (
+                    1 +
+                    rate /
+                      100
+                  )
+                );
+
+              return (
+                sum +
+                roundMoney(
+                  Number(
+                    item.line_total
+                  ) -
+                  Number(net)
+                )
+              );
+            },
+            0
+          )
+        );
+
+      if (
+        Math.abs(
+          Number(total) -
+          Number(
+            quotation.total
+          )
+        ) > 1
+      ) {
+        throw createServiceError(
+          `El total PROJECT preparado (${total}) no coincide con la cotización (${quotation.total})`,
+          409,
+          "PROJECT_CONVERSION_TOTAL_MISMATCH"
+        );
+      }
+
+      const orderResult =
+        await client.query(
+          `
+            INSERT INTO orders (
+              user_id,
+              email,
+              customer_name,
+              customer_rut,
+              customer_phone,
+              source,
+              status,
+              payment_status,
+              fulfillment_status,
+              subtotal,
+              discount_total,
+              shipping_total,
+              tax_total,
+              total,
+              currency,
+              notes,
+              checkout_idempotency_key
+            )
+            VALUES (
+              NULL,
+              $1,
+              $2,
+              $3,
+              $4,
+              'BACKOFFICE',
+              'PENDING',
+              'PENDING',
+              'PENDING',
+              $5,
+              $6,
+              0,
+              $7,
+              $8,
+              'CLP',
+              $9,
+              $10
+            )
+            RETURNING *
+          `,
+          [
+            quotation.email,
+            quotation
+              .customer_name,
+            quotation.rut ||
+              null,
+            quotation.phone ||
+              null,
+            subtotal,
+            discountTotal,
+            taxTotal,
+            total,
+            `Venta desde cotización PROJECT ${quotation.quote_number}${
+              quotation.project_name
+                ? ` · ${quotation.project_name}`
+                : ""
+            }`,
+            idempotencyKey,
+          ]
+        );
+
+      const order =
+        orderResult.rows[0];
+
+      const insertedItems =
+        [];
+
+      for (
+        const item
+        of resolvedItems
+      ) {
+        const itemResult =
+          await client.query(
+            `
+              INSERT INTO order_items (
+                order_id,
+                product_id,
+                sku,
+                product_name,
+                product_code,
+                finish,
+                reference_code,
+                quantity,
+                unit_price,
+                discount_amount,
+                tax_rate,
+                line_subtotal,
+                line_total
+              )
+              VALUES (
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+              )
+              RETURNING *
+            `,
+            [
+              order.id,
+              item.product_id,
+              item.sku,
+              item.product_name,
+              item.product_code,
+              item.finish,
+              item.reference_code,
+              item.quantity,
+              item.unit_price,
+              item.discount_amount,
+              item.tax_rate,
+              item.line_subtotal,
+              item.line_total,
+            ]
+          );
+
+        insertedItems.push(
+          itemResult.rows[0]
+        );
+
+        if (
+          item.product_id
+        ) {
+          await captureOrderItemItalyPriceSnapshot({
+            client,
+            orderId:
+              order.id,
+            orderItemId:
+              itemResult
+                .rows[0]
+                .id,
+            productId:
+              item.product_id,
+            quantity:
+              item.quantity,
+          });
+        }
+      }
+
+      await client.query(
+        `
+          INSERT INTO order_billing_data (
+            order_id,
+            document_type,
+            customer_type,
+            rut,
+            legal_name,
+            trade_name,
+            business_activity,
+            billing_email,
+            phone,
+            address_line,
+            commune,
+            city,
+            region,
+            country,
+            relbase_customer_id
+          )
+          VALUES (
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+          )
+        `,
+        [
+          order.id,
+          normalizedDocumentType,
+          normalizedDocumentType ===
+            "FACTURA"
+            ? "COMPANY"
+            : "PERSON",
+          quotation.rut ||
+            null,
+          quotation
+            .legal_name ||
+            quotation
+              .customer_name,
+          quotation
+            .trade_name ||
+            null,
+          quotation
+            .business_activity ||
+            null,
+          quotation.email ||
+            null,
+          quotation.phone ||
+            null,
+          quotation
+            .address_line ||
+            null,
+          quotation.commune ||
+            null,
+          quotation.city ||
+            null,
+          quotation.region ||
+            null,
+          quotation.country ||
+            "Chile",
+          relbaseCustomerId ||
+            quotation
+              .relbase_customer_id ||
+            null,
+        ]
+      );
+
+      const amountReceived =
+        paymentMethod ===
+        "CASH"
+          ? total
+          : null;
+
+      const changeDue =
+        paymentMethod ===
+        "CASH"
+          ? 0
+          : null;
+
+      const paymentInsert =
+        await client.query(
+          `
+            INSERT INTO payments (
+              order_id,
+              provider_id,
+              payment_method_id,
+              idempotency_key,
+              amount,
+              currency,
+              status,
+              external_reference,
+              amount_received,
+              change_due,
+              notes
+            )
+            VALUES (
+              $1,$2,$3,$4,$5,'CLP','PENDING',$6,$7,$8,$9
+            )
+            RETURNING id
+          `,
+          [
+            order.id,
+            configuration
+              .provider.id,
+            configuration
+              .method.id,
+            idempotencyKey,
+            total,
+            externalReference,
+            amountReceived,
+            changeDue,
+            `Venta BACKOFFICE desde ${quotation.quote_number}`,
+          ]
+        );
+
+      const paymentId =
+        paymentInsert
+          .rows[0].id;
+
+      const paymentResult =
+        await client.query(
+          `
+            UPDATE payments
+            SET
+              status = 'PAID',
+              confirmed_at = NOW(),
+              confirmed_by = $2
+            WHERE id = $1
+            RETURNING *
+          `,
+          [
+            paymentId,
+            cashierId,
+          ]
+        );
+
+      const completed =
+        await client.query(
+          `
+            UPDATE orders
+            SET
+              status = 'COMPLETED',
+              payment_status = 'PAID',
+              fulfillment_status = 'DELIVERED'
+            WHERE id = $1
+            RETURNING *
+          `,
+          [order.id]
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      return {
+        created: true,
+        already_existed:
+          false,
+        idempotency_key:
+          idempotencyKey,
+        dte_emission_executed:
+          false,
+        relbase_stock_write_executed:
+          false,
+        order:
+          completed.rows[0],
+        payment:
+          {
+            ...paymentResult
+              .rows[0],
+            method:
+              configuration
+                .method.code,
+            provider:
+              configuration
+                .provider.code,
+          },
+        billing: {
+          document_type:
+            normalizedDocumentType,
+          customer_type:
+            normalizedDocumentType ===
+              "FACTURA"
+              ? "COMPANY"
+              : "PERSON",
+          relbase_customer_id:
+            relbaseCustomerId ||
+            quotation
+              .relbase_customer_id ||
+            null,
+        },
+        items:
+          insertedItems,
+        reservations: [],
+        next_action:
+          "PREPARE_TAX_DOCUMENT_WHEN_REQUIRED",
+      };
+    } catch (error) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {
+        // noop
+      }
+
+      if (
+        error?.code ===
+          "23505"
+      ) {
+        const existingClient =
+          await pool.connect();
+
+        try {
+          const existing =
+            await getExistingBackofficeSaleByIdempotencyKey(
+              existingClient,
+              idempotencyKey
+            );
+
+          if (existing) {
+            return {
+              created: false,
+              already_existed:
+                true,
+              idempotency_key:
+                idempotencyKey,
+              ...existing,
+            };
+          }
+        } finally {
+          existingClient.release();
+        }
+      }
+
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
+
 
 export const createPosSale = async ({
   cashierUserId,

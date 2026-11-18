@@ -5,6 +5,7 @@ import { normalizeRut as normalizeChileanRut } from "../utils/rut.utils.js";
 import { sendTransactionalEmail } from "./emailTransport.service.js";
 import { buildQuotationEmail } from "./emailTemplates.service.js";
 import {
+  createBackofficeProjectSale,
   createPosSale,
   ensurePosInvoiceCustomer,
 } from "./pos.service.js";
@@ -20,6 +21,9 @@ import {
 import {
   ensureProjectQuotationItalyEmailArtifacts,
 } from "./projectQuotationItalyEmailOutbox.service.js";
+import {
+  prepareTaxDocument,
+} from "./taxDocument.service.js";
 
 const POS_WAREHOUSE_ID = 956;
 
@@ -4812,8 +4816,18 @@ export const emailQuotation = async ({
   };
 };
 
-const ensureInvoiceCustomerForQuotation = async (quotation) => {
-  if (quotation.intended_document_type !== "FACTURA") {
+const ensureInvoiceCustomerForQuotation = async (
+  quotation,
+  documentType = quotation?.intended_document_type
+) => {
+  if (
+    String(
+      documentType || ""
+    )
+      .trim()
+      .toUpperCase() !==
+    "FACTURA"
+  ) {
     return quotation.relbase_customer_id || null;
   }
 
@@ -4836,6 +4850,170 @@ const ensureInvoiceCustomerForQuotation = async (quotation) => {
   return result.relbase_customer_id;
 };
 
+
+const resolveQuotationConversionDocumentType = ({
+  quotation,
+  body,
+}) => {
+  const requested =
+    cleanText(
+      body?.document_type ||
+      quotation?.intended_document_type
+    ).toUpperCase();
+
+  if (
+    ![
+      "BOLETA",
+      "FACTURA",
+    ].includes(requested)
+  ) {
+    throw createServiceError(
+      "document_type debe ser BOLETA o FACTURA",
+      400,
+      "QUOTATION_CONVERSION_DOCUMENT_TYPE_INVALID"
+    );
+  }
+
+  return requested;
+};
+
+const prepareAndQueueQuotationDte = async ({
+  orderId,
+  requestedBy,
+}) => {
+  const prepared =
+    await prepareTaxDocument(
+      orderId
+    );
+
+  const taxDocumentId =
+    prepared?.tax_document?.id ||
+    null;
+
+  if (!taxDocumentId) {
+    throw createServiceError(
+      "El documento tributario fue preparado sin tax_document_id",
+      500,
+      "QUOTATION_TAX_DOCUMENT_ID_MISSING"
+    );
+  }
+
+  /*
+   * Idempotencia:
+   * - existe UNIQUE(order_id)
+   * - existe UNIQUE(tax_document_id)
+   *
+   * Si el job ya está COMPLETED/PROCESSING/QUEUED no lo reiniciamos.
+   * Si quedó FAILED/BLOCKED, una acción manual de conversión puede
+   * volver a dejarlo en QUEUED.
+   */
+  await pool.query(
+    `
+      INSERT INTO tax_document_emission_jobs (
+        order_id,
+        tax_document_id,
+        requested_by,
+        status,
+        attempts,
+        next_attempt_at
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        'QUEUED',
+        0,
+        NOW()
+      )
+      ON CONFLICT (order_id)
+      DO UPDATE SET
+        tax_document_id =
+          COALESCE(
+            tax_document_emission_jobs.tax_document_id,
+            EXCLUDED.tax_document_id
+          ),
+        requested_by =
+          COALESCE(
+            EXCLUDED.requested_by,
+            tax_document_emission_jobs.requested_by
+          ),
+        status =
+          CASE
+            WHEN tax_document_emission_jobs.status IN (
+              'FAILED',
+              'BLOCKED'
+            )
+            THEN 'QUEUED'
+            ELSE tax_document_emission_jobs.status
+          END,
+        next_attempt_at =
+          CASE
+            WHEN tax_document_emission_jobs.status IN (
+              'FAILED',
+              'BLOCKED'
+            )
+            THEN NOW()
+            ELSE tax_document_emission_jobs.next_attempt_at
+          END,
+        last_error =
+          CASE
+            WHEN tax_document_emission_jobs.status IN (
+              'FAILED',
+              'BLOCKED'
+            )
+            THEN NULL
+            ELSE tax_document_emission_jobs.last_error
+          END,
+        last_error_code =
+          CASE
+            WHEN tax_document_emission_jobs.status IN (
+              'FAILED',
+              'BLOCKED'
+            )
+            THEN NULL
+            ELSE tax_document_emission_jobs.last_error_code
+          END,
+        updated_at = NOW()
+    `,
+    [
+      orderId,
+      taxDocumentId,
+      requestedBy || null,
+    ]
+  );
+
+  const jobResult =
+    await pool.query(
+      `
+        SELECT
+          id,
+          order_id,
+          tax_document_id,
+          requested_by,
+          status,
+          attempts,
+          next_attempt_at,
+          processing_started_at,
+          completed_at,
+          last_error,
+          last_error_code,
+          created_at,
+          updated_at
+        FROM tax_document_emission_jobs
+        WHERE order_id = $1
+        LIMIT 1
+      `,
+      [orderId]
+    );
+
+  return {
+    prepared,
+    job:
+      jobResult.rows[0] ||
+      null,
+  };
+};
+
 export const convertQuotationToSale = async ({
   quotationId,
   cashierUserId,
@@ -4847,31 +5025,44 @@ export const convertQuotationToSale = async ({
   const initial = await getQuotationById({ quotationId: id });
   const initialQuotation = initial.quotation;
 
-  if (
-    cleanText(
-      initialQuotation
-        .quotation_type
-    ).toUpperCase() ===
-    "PROJECT"
-  ) {
-    throw createServiceError(
-      "Las cotizaciones de proyecto todavía no se convierten automáticamente en venta POS",
-      409,
-      "QUOTATION_PROJECT_CONVERSION_NOT_SUPPORTED"
-    );
-  }
+  const documentType =
+    resolveQuotationConversionDocumentType({
+      quotation:
+        initialQuotation,
+      body,
+    });
 
   if (!CONVERTIBLE_STATUSES.has(initialQuotation.status)) {
     if (
       initialQuotation.status === "CONVERTED" &&
       initialQuotation.converted_order_id
     ) {
+      const dte =
+        await prepareAndQueueQuotationDte({
+          orderId:
+            initialQuotation.converted_order_id,
+          requestedBy:
+            cashierId,
+        });
+
       return {
         converted: false,
         already_converted: true,
-        quotation: initialQuotation,
-        order_id: initialQuotation.converted_order_id,
-        order_number: initialQuotation.converted_order_number || null,
+        quotation:
+          initialQuotation,
+        order_id:
+          initialQuotation.converted_order_id,
+        order_number:
+          initialQuotation.converted_order_number ||
+          null,
+        dte_emission_executed:
+          true,
+        dte_prepared:
+          true,
+        dte:
+          dte.prepared,
+        emission_job:
+          dte.job,
       };
     }
 
@@ -4883,11 +5074,24 @@ export const convertQuotationToSale = async ({
   }
 
   /*
-   * Si es Factura, la escritura/validación con Relbase ocurre
-   * antes de tomar locks de PostgreSQL.
+   * Factura:
+   * asegurar cliente empresa real en Relbase antes de abrir locks.
+   *
+   * Boleta:
+   * taxDocument.service resolverá cliente genérico/real según
+   * corresponda; no forzamos ensurePosInvoiceCustomer.
    */
   const relbaseCustomerId =
-    await ensureInvoiceCustomerForQuotation(initialQuotation);
+    documentType === "FACTURA"
+      ? await ensureInvoiceCustomerForQuotation(
+          initialQuotation,
+          documentType
+        )
+      : (
+          initialQuotation
+            .relbase_customer_id ||
+          null
+        );
 
   const client = await pool.connect();
 
@@ -4917,11 +5121,37 @@ export const convertQuotationToSale = async ({
 
     if (quotation.status === "CONVERTED") {
       await client.query("COMMIT");
+
+      if (!quotation.converted_order_id) {
+        throw createServiceError(
+          "La cotización figura convertida pero no posee converted_order_id",
+          409,
+          "QUOTATION_CONVERTED_ORDER_MISSING"
+        );
+      }
+
+      const dte =
+        await prepareAndQueueQuotationDte({
+          orderId:
+            quotation.converted_order_id,
+          requestedBy:
+            cashierId,
+        });
+
       return {
         converted: false,
         already_converted: true,
         quotation,
-        order_id: quotation.converted_order_id,
+        order_id:
+          quotation.converted_order_id,
+        dte_emission_executed:
+          true,
+        dte_prepared:
+          true,
+        dte:
+          dte.prepared,
+        emission_job:
+          dte.job,
       };
     }
 
@@ -4950,74 +5180,185 @@ export const convertQuotationToSale = async ({
       );
     }
 
-    const items = await getQuotationItems(id, client);
-    if (items.length === 0) {
-      throw createServiceError(
-        "La cotización no posee productos",
-        409,
-        "QUOTATION_ITEMS_MISSING"
-      );
-    }
+    const isProjectQuotation =
+      cleanText(
+        quotation.quotation_type
+      ).toUpperCase() ===
+      "PROJECT";
 
-    const pricingSnapshot = new Map(
-      items.map((item) => [
-        item.product_id,
-        {
-          product_id: item.product_id,
-          sku: item.sku,
-          product_name: item.product_name,
-          quantity: Number(item.quantity),
-          unit_price_gross: Number(item.unit_price_gross),
-          tax_rate: Number(item.tax_rate),
+    let sale;
+
+    if (
+      isProjectQuotation
+    ) {
+      const projectLines =
+        await getQuotationProjectLines(
+          id,
+          client
+        );
+
+      if (
+        projectLines.length ===
+        0
+      ) {
+        throw createServiceError(
+          "La cotización PROJECT no posee líneas",
+          409,
+          "QUOTATION_PROJECT_LINES_MISSING"
+        );
+      }
+
+      sale =
+        await createBackofficeProjectSale({
+          cashierUserId:
+            cashierId,
+          quotation,
+          projectLines,
+          documentType,
+          relbaseCustomerId,
+          payment: {
+            method:
+              cleanText(
+                body?.payment?.method
+              ).toUpperCase(),
+            amount_received:
+              body?.payment?.amount_received,
+            external_reference:
+              body?.payment?.external_reference,
+          },
+        });
+    } else {
+      const items =
+        await getQuotationItems(
+          id,
+          client
+        );
+
+      if (
+        items.length === 0
+      ) {
+        throw createServiceError(
+          "La cotización no posee productos",
+          409,
+          "QUOTATION_ITEMS_MISSING"
+        );
+      }
+
+      const pricingSnapshot =
+        new Map(
+          items.map(
+            (item) => [
+              item.product_id,
+              {
+                product_id:
+                  item.product_id,
+                sku:
+                  item.sku,
+                product_name:
+                  item.product_name,
+                quantity:
+                  Number(
+                    item.quantity
+                  ),
+                unit_price_gross:
+                  Number(
+                    item.unit_price_gross
+                  ),
+                tax_rate:
+                  Number(
+                    item.tax_rate
+                  ),
+              },
+            ]
+          )
+        );
+
+      const saleBody = {
+        idempotency_key:
+          quotation.conversion_idempotency_key,
+        document_type:
+          documentType,
+        customer: {
+          name:
+            quotation.customer_name,
+          rut:
+            quotation.rut,
+          email:
+            quotation.email,
+          phone:
+            quotation.phone,
         },
-      ])
-    );
+        billing: {
+          customer_type:
+            documentType ===
+            "FACTURA"
+              ? "COMPANY"
+              : "PERSON",
+          rut:
+            quotation.rut,
+          legal_name:
+            quotation.legal_name ||
+            quotation.customer_name,
+          trade_name:
+            quotation.trade_name,
+          business_activity:
+            quotation.business_activity,
+          billing_email:
+            quotation.email,
+          phone:
+            quotation.phone,
+          address_line:
+            quotation.address_line,
+          commune:
+            quotation.commune,
+          city:
+            quotation.city,
+          region:
+            quotation.region,
+          country:
+            quotation.country,
+          relbase_customer_id:
+            relbaseCustomerId ||
+            quotation.relbase_customer_id,
+        },
+        items:
+          items.map(
+            (item) => ({
+              product_id:
+                item.product_id,
+              quantity:
+                Number(
+                  item.quantity
+                ),
+            })
+          ),
+        payment: {
+          method:
+            cleanText(
+              body?.payment?.method
+            ).toUpperCase(),
+          amount_received:
+            body?.payment?.amount_received,
+          external_reference:
+            body?.payment?.external_reference,
+        },
+        notes:
+          optionalText(
+            body?.notes
+          ) ||
+          `Venta desde cotización ${quotation.quote_number}`,
+      };
 
-    const saleBody = {
-      idempotency_key: quotation.conversion_idempotency_key,
-      document_type: quotation.intended_document_type,
-      customer: {
-        name: quotation.customer_name,
-        rut: quotation.rut,
-        email: quotation.email,
-        phone: quotation.phone,
-      },
-      billing: {
-        customer_type: quotation.customer_type,
-        rut: quotation.rut,
-        legal_name:
-          quotation.legal_name || quotation.customer_name,
-        trade_name: quotation.trade_name,
-        business_activity: quotation.business_activity,
-        billing_email: quotation.email,
-        phone: quotation.phone,
-        address_line: quotation.address_line,
-        commune: quotation.commune,
-        city: quotation.city,
-        region: quotation.region,
-        country: quotation.country,
-        relbase_customer_id:
-          relbaseCustomerId || quotation.relbase_customer_id,
-      },
-      items: items.map((item) => ({
-        product_id: item.product_id,
-        quantity: Number(item.quantity),
-      })),
-      payment: {
-        method: cleanText(body?.payment?.method).toUpperCase(),
-        amount_received: body?.payment?.amount_received,
-        external_reference: body?.payment?.external_reference,
-      },
-      notes:
-        optionalText(body?.notes) ||
-        `Venta desde cotización ${quotation.quote_number}`,
-    };
-
-    const sale = await createPosSale({
-      cashierUserId: cashierId,
-      body: saleBody,
-      trustedPricingSnapshot: pricingSnapshot,
-    });
+      sale =
+        await createPosSale({
+          cashierUserId:
+            cashierId,
+          body:
+            saleBody,
+          trustedPricingSnapshot:
+            pricingSnapshot,
+        });
+    }
 
     if (!sale?.order?.id) {
       throw createServiceError(
@@ -5043,6 +5384,7 @@ export const convertQuotationToSale = async ({
         UPDATE quotations
         SET
           status = 'CONVERTED',
+          intended_document_type = $4,
           converted_order_id = $2,
           converted_at = NOW(),
           relbase_customer_id = COALESCE($3, relbase_customer_id)
@@ -5053,18 +5395,46 @@ export const convertQuotationToSale = async ({
         id,
         sale.order.id,
         relbaseCustomerId || null,
+        documentType,
       ]
     );
 
     await client.query("COMMIT");
 
+    /*
+     * La orden POS ya quedó COMMITTED y la cotización también.
+     * Desde aquí usamos el flujo tributario existente:
+     * prepareTaxDocument -> tax_document_emission_jobs.
+     *
+     * Si Relbase/worker falla después, una repetición del endpoint
+     * encuentra converted_order_id y reintenta de forma idempotente.
+     */
+    const dte =
+      await prepareAndQueueQuotationDte({
+        orderId:
+          sale.order.id,
+        requestedBy:
+          cashierId,
+      });
+
     return {
       converted: true,
       already_converted: false,
-      quotation: convertedResult.rows[0],
+      quotation:
+        convertedResult.rows[0],
       sale,
-      dte_emission_executed: false,
-      next_action: "PREPARE_TAX_DOCUMENT_WHEN_ENABLED",
+      document_type:
+        documentType,
+      dte_emission_executed:
+        true,
+      dte_prepared:
+        true,
+      dte:
+        dte.prepared,
+      emission_job:
+        dte.job,
+      next_action:
+        "DTE_QUEUED_FOR_EMISSION",
     };
   } catch (error) {
     try {

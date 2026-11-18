@@ -364,8 +364,8 @@ export const convertQuotationController = async (
     return res.status(result.converted ? 201 : 200).json({
       success: true,
       message: result.converted
-        ? "Cotización convertida en venta correctamente"
-        : "La cotización ya había sido convertida",
+        ? "Cotización convertida en venta y documento tributario encolado correctamente"
+        : "La cotización ya estaba convertida; se verificó la preparación y cola del documento tributario",
       data: result,
     });
   } catch (error) {
