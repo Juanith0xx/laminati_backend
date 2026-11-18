@@ -14,6 +14,10 @@ import {
   emitTaxDocumentUpdated,
 } from "./realtime.service.js";
 
+import {
+  syncRelbaseProductInventory,
+} from "./relbaseInventory.service.js";
+
 const normalizeText = (value) =>
   String(value ?? "").trim();
 
@@ -323,6 +327,118 @@ const readTaxDocumentState =
     return result.rows[0] || null;
   };
 
+
+/* =========================================
+   RESINCRONIZAR INVENTARIO POST-DTE
+   - Relbase sigue siendo la fuente de verdad.
+   - Sólo productos reales con product_id.
+   - SERV-HPL / INS-HPL no se tocan.
+   - Un fallo de sync NO convierte un DTE emitido
+     en FAILED, para evitar reintentos peligrosos.
+========================================= */
+const syncOrderInventoryFromRelbase =
+  async (orderId) => {
+    const productsResult =
+      await pool.query(
+        `
+          SELECT DISTINCT
+            oi.product_id,
+            oi.sku,
+            oi.product_name
+          FROM order_items oi
+          WHERE oi.order_id = $1
+            AND oi.product_id IS NOT NULL
+          ORDER BY oi.sku ASC
+        `,
+        [orderId]
+      );
+
+    const results = [];
+
+    for (
+      const item
+      of productsResult.rows
+    ) {
+      try {
+        const syncResult =
+          await syncRelbaseProductInventory(
+            item.product_id
+          );
+
+        results.push({
+          product_id:
+            item.product_id,
+          sku:
+            item.sku,
+          ok: true,
+          result:
+            syncResult,
+        });
+      } catch (error) {
+        console.error(
+          "Sincronización de inventario post-DTE falló:",
+          {
+            order_id:
+              orderId,
+            product_id:
+              item.product_id,
+            sku:
+              item.sku,
+            message:
+              normalizeText(
+                error?.message
+              ) ||
+              "Error desconocido",
+            code:
+              normalizeText(
+                error?.code
+              ) ||
+              null,
+          }
+        );
+
+        results.push({
+          product_id:
+            item.product_id,
+          sku:
+            item.sku,
+          ok: false,
+          error: {
+            message:
+              normalizeText(
+                error?.message
+              ) ||
+              "Error desconocido",
+            code:
+              normalizeText(
+                error?.code
+              ) ||
+              null,
+          },
+        });
+      }
+    }
+
+    const synced =
+      results.filter(
+        (item) =>
+          item.ok
+      ).length;
+
+    const failed =
+      results.length -
+      synced;
+
+    return {
+      attempted:
+        results.length,
+      synced,
+      failed,
+      results,
+    };
+  };
+
+
 export const processTaxDocumentEmissionJobByOrderId =
   async ({
     orderId,
@@ -396,6 +512,11 @@ export const processTaxDocumentEmissionJobByOrderId =
             currentStatus
           )
       ) {
+        const inventorySync =
+          await syncOrderInventoryFromRelbase(
+            job.order_id
+          );
+
         const completedJob =
           await updateJob({
             id:
@@ -414,6 +535,8 @@ export const processTaxDocumentEmissionJobByOrderId =
               "COMPLETED",
             tax_document:
               current,
+            inventory_sync:
+              inventorySync,
           }
         );
 
@@ -425,6 +548,8 @@ export const processTaxDocumentEmissionJobByOrderId =
             completedJob,
           tax_document:
             current,
+          inventory_sync:
+            inventorySync,
         };
       }
 
@@ -498,6 +623,16 @@ export const processTaxDocumentEmissionJobByOrderId =
           taxDocumentId
         );
 
+      /*
+       * El DTE ya fue emitido en Relbase.
+       * Recién ahora refrescamos el inventario local
+       * desde la fuente de verdad remota.
+       */
+      const inventorySync =
+        await syncOrderInventoryFromRelbase(
+          job.order_id
+        );
+
       const completedJob =
         await updateJob({
           id:
@@ -519,6 +654,8 @@ export const processTaxDocumentEmissionJobByOrderId =
           timings:
             emission?.timings ||
             null,
+          inventory_sync:
+            inventorySync,
         }
       );
 
@@ -532,6 +669,8 @@ export const processTaxDocumentEmissionJobByOrderId =
         timings:
           emission?.timings ||
           null,
+        inventory_sync:
+          inventorySync,
       };
     } catch (error) {
       const safe =
