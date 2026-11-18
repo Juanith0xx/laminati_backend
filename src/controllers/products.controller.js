@@ -1030,6 +1030,8 @@ export const getProducts = async (req, res) => {
 
       search,
 
+      strat_code,
+
       featured,
 
       in_stock,
@@ -1367,6 +1369,25 @@ export const getProducts = async (req, res) => {
         },
         products: [],
       });
+    }
+
+    // Búsqueda pública por código para Cubiertas/STRATIFICATO únicamente.
+    // No amplía los permisos de la búsqueda técnica STRAT-/LAB-/MEG-.
+    if (strat_code !== undefined && strat_code !== "") {
+      const numericCode = String(strat_code).trim();
+      if (
+        !/^[0-9]{1,6}$/.test(numericCode) ||
+        String(category || "").toLowerCase() !== "stratificato" ||
+        String(brand || "").toLowerCase() !== "abet-laminati"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Código STRATIFICATO o filtros no válidos",
+        });
+      }
+
+      values.push(`STRAT-${numericCode}`);
+      conditions.push(`LOWER(COALESCE(sku, '')) = LOWER($${values.length})`);
     }
 
     if (normalizedSearch) {
