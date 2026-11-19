@@ -9,6 +9,7 @@ import {
   createQuotation,
   deleteQuotation,
   emailQuotation,
+  getProjectQuotationProductOptions,
   getQuotationById,
   getQuotationPdf,
   listQuotations,
@@ -24,6 +25,57 @@ const sendError = (res, error) =>
       "No fue posible procesar la cotización",
     code: error?.code || "QUOTATION_INTERNAL_ERROR",
   });
+
+
+export const getProjectQuotationProductOptionsController =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const result =
+        await getProjectQuotationProductOptions({
+          productId:
+            req.params
+              .productId,
+        });
+
+      return res
+        .status(200)
+        .json({
+          success:
+            true,
+          data:
+            result,
+        });
+    } catch (
+      error
+    ) {
+      console.error(
+        "Error obteniendo opciones técnicas de producto para cotización de proyecto:",
+        {
+          message:
+            error?.message,
+          code:
+            error?.code ||
+            null,
+          status:
+            error?.status ||
+            null,
+          product_id:
+            req.params
+              ?.productId ||
+            null,
+        }
+      );
+
+      return sendError(
+        res,
+        error
+      );
+    }
+  };
+
 
 export const createQuotationController = async (
   req,

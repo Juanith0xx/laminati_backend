@@ -7,6 +7,7 @@ import {
   createQuotationController,
   deleteQuotationController,
   emailQuotationController,
+  getProjectQuotationProductOptionsController,
   getQuotationController,
   getQuotationPdfController,
   getQuotationTrackingController,
@@ -26,6 +27,10 @@ router.post("/", createQuotationController);
 router.post(
   "/project",
   createProjectQuotationController
+);
+router.get(
+  "/project/products/:productId/options",
+  getProjectQuotationProductOptionsController
 );
 router.get("/:quotationId", getQuotationController);
 router.patch("/:quotationId", updateQuotationController);

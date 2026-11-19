@@ -1910,6 +1910,253 @@ const insertProjectLines =
   };
 
 
+
+export const getProjectQuotationProductOptions = async ({
+  productId,
+}) => {
+  const normalizedProductId =
+    requireUuid(
+      productId,
+      "productId"
+    );
+
+  const productResult =
+    await pool.query(
+      `
+        SELECT
+          p.id,
+          p.sku,
+          p.internal_code,
+          p.name,
+          p.project_family_id,
+          b.name AS brand,
+          family.code AS project_family_code,
+          family.name AS project_family_name,
+          primary_collection.id AS collection_id,
+          primary_collection.name AS collection_name,
+          primary_collection.slug AS collection_slug
+        FROM products p
+        LEFT JOIN brands b
+          ON b.id = p.brand_id
+        LEFT JOIN project_product_families family
+          ON family.id = p.project_family_id
+        LEFT JOIN LATERAL (
+          SELECT
+            ac.id,
+            ac.name,
+            ac.slug
+          FROM product_abet_collections pac
+          JOIN abet_collections ac
+            ON ac.id = pac.abet_collection_id
+          WHERE pac.product_id = p.id
+            AND pac.is_primary = TRUE
+          LIMIT 1
+        ) primary_collection
+          ON TRUE
+        WHERE p.id = $1
+        LIMIT 1
+      `,
+      [
+        normalizedProductId,
+      ]
+    );
+
+  if (
+    productResult.rowCount ===
+    0
+  ) {
+    throw createServiceError(
+      "El producto solicitado no existe",
+      404,
+      "QUOTATION_PROJECT_PRODUCT_NOT_FOUND"
+    );
+  }
+
+  const product =
+    productResult.rows[0];
+
+  const finishesResult =
+    await pool.query(
+      `
+        SELECT
+          f.id,
+          f.name,
+          ppf.is_default,
+          f.sort_order,
+          COALESCE(
+            jsonb_agg(
+              jsonb_build_object(
+                'id',
+                fmt.id,
+                'label',
+                fmt.label,
+                'width_cm',
+                fmt.width_cm,
+                'length_cm',
+                fmt.length_cm
+              )
+              ORDER BY
+                fmt.sort_order,
+                fmt.length_cm,
+                fmt.width_cm
+            )
+            FILTER (
+              WHERE
+                fmt.id IS NOT NULL
+            ),
+            '[]'::jsonb
+          ) AS formats
+        FROM product_project_finishes ppf
+        JOIN project_family_finishes f
+          ON f.id = ppf.finish_id
+         AND f.is_active = TRUE
+        LEFT JOIN project_family_finish_formats pfff
+          ON pfff.finish_id = f.id
+         AND pfff.is_active = TRUE
+        LEFT JOIN project_family_formats fmt
+          ON fmt.id = pfff.format_id
+         AND fmt.is_active = TRUE
+        WHERE ppf.product_id = $1
+          AND ppf.is_active = TRUE
+        GROUP BY
+          f.id,
+          f.name,
+          f.sort_order,
+          ppf.is_default
+        ORDER BY
+          ppf.is_default DESC,
+          f.sort_order,
+          f.name
+      `,
+      [
+        normalizedProductId,
+      ]
+    );
+
+  let thicknesses =
+    [];
+
+  if (
+    product.project_family_id
+  ) {
+    const thicknessesResult =
+      await pool.query(
+        `
+          SELECT
+            t.id,
+            t.thickness_mm,
+            t.sort_order
+          FROM project_family_thicknesses t
+          WHERE t.family_id = $1
+            AND t.is_active = TRUE
+          ORDER BY
+            t.sort_order,
+            t.thickness_mm
+        `,
+        [
+          product
+            .project_family_id,
+        ]
+      );
+
+    thicknesses =
+      thicknessesResult
+        .rows
+        .map(
+          (
+            thickness
+          ) => ({
+            id:
+              thickness.id,
+            thickness_mm:
+              Number(
+                thickness
+                  .thickness_mm
+              ),
+          })
+        );
+  }
+
+  return {
+    id:
+      product.id,
+    sku:
+      product.sku,
+    code:
+      product
+        .internal_code ||
+      product.sku,
+    internal_code:
+      product
+        .internal_code,
+    name:
+      product.name,
+    brand:
+      product.brand,
+    project_family:
+      product
+        .project_family_id
+        ? {
+            id:
+              product
+                .project_family_id,
+            code:
+              product
+                .project_family_code,
+            name:
+              product
+                .project_family_name,
+          }
+        : null,
+    collection:
+      product
+        .collection_id
+        ? {
+            id:
+              product
+                .collection_id,
+            name:
+              product
+                .collection_name,
+            slug:
+              product
+                .collection_slug,
+          }
+        : null,
+    finishes:
+      finishesResult
+        .rows
+        .map(
+          (
+            finish
+          ) => ({
+            id:
+              finish.id,
+            name:
+              finish.name,
+            is_default:
+              Boolean(
+                finish
+                  .is_default
+              ),
+            formats:
+              Array.isArray(
+                finish.formats
+              )
+                ? finish
+                    .formats
+                : [],
+          })
+        ),
+    thicknesses,
+    technical_options_configured:
+      finishesResult
+        .rowCount >
+      0,
+  };
+};
+
+
 export const getQuotationById = async ({ quotationId }) => {
   const id = requireUuid(quotationId, "quotationId");
 
