@@ -1477,10 +1477,22 @@ export const listPosProducts = async ({
           '[]'::jsonb
         ) AS project_finishes,
 
+        COALESCE(
+          family_options.project_thicknesses,
+          '[]'::jsonb
+        ) AS project_thicknesses,
+
         (
           jsonb_array_length(
             COALESCE(
               project_options.project_finishes,
+              '[]'::jsonb
+            )
+          ) > 0
+          OR
+          jsonb_array_length(
+            COALESCE(
+              family_options.project_thicknesses,
               '[]'::jsonb
             )
           ) > 0
@@ -1582,6 +1594,18 @@ export const listPosProducts = async ({
         WHERE ppf.product_id = p.id
           AND ppf.is_active = TRUE
       ) project_options
+        ON TRUE
+
+      LEFT JOIN LATERAL (
+        SELECT
+          jsonb_agg(
+            t.thickness_mm
+            ORDER BY t.thickness_mm
+          ) AS project_thicknesses
+        FROM project_family_thicknesses t
+        WHERE t.family_id = p.project_family_id
+          AND t.is_active = TRUE
+      ) family_options
         ON TRUE
 
       LEFT JOIN inventory i
@@ -1745,10 +1769,22 @@ export const listProjectQuotationProducts = async ({
           '[]'::jsonb
         ) AS project_finishes,
 
+        COALESCE(
+          family_options.project_thicknesses,
+          '[]'::jsonb
+        ) AS project_thicknesses,
+
         (
           jsonb_array_length(
             COALESCE(
               project_options.project_finishes,
+              '[]'::jsonb
+            )
+          ) > 0
+          OR
+          jsonb_array_length(
+            COALESCE(
+              family_options.project_thicknesses,
               '[]'::jsonb
             )
           ) > 0
@@ -1789,6 +1825,18 @@ export const listProjectQuotationProducts = async ({
         WHERE ppf.product_id = p.id
           AND ppf.is_active = TRUE
       ) project_options
+        ON TRUE
+
+      LEFT JOIN LATERAL (
+        SELECT
+          jsonb_agg(
+            t.thickness_mm
+            ORDER BY t.thickness_mm
+          ) AS project_thicknesses
+        FROM project_family_thicknesses t
+        WHERE t.family_id = p.project_family_id
+          AND t.is_active = TRUE
+      ) family_options
         ON TRUE
 
       LEFT JOIN LATERAL (
