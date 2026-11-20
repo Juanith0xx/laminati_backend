@@ -1,0 +1,37 @@
+[2026-11-20T18:19:04.410Z] [INFO] === Apply Labgrade / Abet from validated report V3 ===
+[2026-11-20T18:19:04.410Z] [INFO] Modo: VERIFY-ONLY
+[2026-11-20T18:19:04.410Z] [INFO] Log: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_labgrade_report_2026-11-20T18-19-04-409Z.log
+[2026-11-20T18:19:04.410Z] [INFO] Progreso: cada 2 producto(s)
+[2026-11-20T18:19:06.388Z] [INFO] Reporte: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/labgrade_abet_sync_v1_2026-11-20T18-07-38-520Z.json
+[2026-11-20T18:19:06.389Z] [INFO] Reporte versión: LABGRADE_V1
+[2026-11-20T18:19:06.389Z] [INFO] Fuente técnica: LABGRADE-06-2026
+[2026-11-20T18:19:06.389Z] [INFO] Generado: 2026-11-20T18:07:38.520Z
+[2026-11-20T18:19:06.390Z] [INFO] Total auditado: 10
+[2026-11-20T18:19:06.390Z] [INFO] Aprobados DRY_RUN_OK: 10
+[2026-11-20T18:19:06.390Z] [INFO] LABGRADE aprobados: 6
+[2026-11-20T18:19:06.391Z] [INFO] LABGRADE_PLUS aprobados: 4
+[2026-11-20T18:19:06.391Z] [INFO] REVIEW: 0
+[2026-11-20T18:19:06.391Z] [INFO] ERROR: 0
+[2026-11-20T18:19:06.391Z] [INFO] Faltantes catálogo: 0
+[2026-11-20T18:19:06.391Z] [INFO] Relaciones a insertar/actualizar: 15
+[2026-11-20T18:19:06.392Z] [INFO]   LABGRADE: 11
+[2026-11-20T18:19:06.392Z] [INFO]   LABGRADE_PLUS: 4
+[2026-11-20T18:19:06.392Z] [INFO] Relaciones activas existentes compatibles: 15
+[2026-11-20T18:19:06.392Z] [INFO] Ejecutando verificación de datos existentes (sin escritura)...
+[2026-11-20T18:19:07.432Z] [INFO] === VERIFICACIÓN FINAL ===
+[2026-11-20T18:19:07.432Z] [INFO] LABGRADE - Productos con acabados activos: 6
+[2026-11-20T18:19:07.432Z] [INFO] LABGRADE - Relaciones de acabado activas: 11
+[2026-11-20T18:19:07.432Z] [INFO] LABGRADE - Productos con default activo: 6
+[2026-11-20T18:19:07.432Z] [INFO] LABGRADE_PLUS - Productos con acabados activos: 4
+[2026-11-20T18:19:07.432Z] [INFO] LABGRADE_PLUS - Relaciones de acabado activas: 4
+[2026-11-20T18:19:07.433Z] [INFO] LABGRADE_PLUS - Productos con default activo: 4
+[2026-11-20T18:19:07.433Z] [INFO] Productos verificados contra el reporte: 10
+[2026-11-20T18:19:07.433Z] [INFO] Relaciones esperadas según reporte: 15
+[2026-11-20T18:19:07.433Z] [INFO] Relaciones sin formato activo: 0
+[2026-11-20T18:19:07.433Z] [INFO] DEFAULT_CHECK OK: todos los productos Labgrade tienen exactamente 1 default.
+[2026-11-20T18:19:07.433Z] [INFO] RELATION_CHECK OK: cada producto tiene la cantidad de acabados indicada por el reporte validado.
+[2026-11-20T18:19:07.433Z] [INFO] FINISH_SET_CHECK OK: los acabados activos coinciden exactamente con el reporte validado.
+[2026-11-20T18:19:07.433Z] [INFO] FORMAT_CHECK OK: todas las relaciones Labgrade tienen formatos activos.
+[2026-11-20T18:19:07.433Z] [INFO] VERIFY-ONLY: no se modificó PostgreSQL.
+[2026-11-20T18:19:07.433Z] [INFO] PROCESO TERMINADO CORRECTAMENTE. Duración=00:00:03
+[2026-11-20T18:19:07.433Z] [INFO] Log guardado en: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_labgrade_report_2026-11-20T18-19-04-409Z.log

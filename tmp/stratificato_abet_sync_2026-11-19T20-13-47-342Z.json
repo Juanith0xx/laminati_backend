@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-11-19T20:13:47.341Z",
+  "mode": "DRY_RUN",
+  "replace": false,
+  "total": 1,
+  "ok": 0,
+  "review": 1,
+  "errors": 0,
+  "results": [
+    {
+      "sku": "STRAT-669",
+      "code": "669",
+      "name": "Rovere Primitivo",
+      "url": "https://es.abetlaminati.com/decori/rovere-primitivo-669/",
+      "status": "REVIEW",
+      "reason": "PRODUCTS_SECTION_NOT_FOUND",
+      "default_finish": null,
+      "finishes": [],
+      "formats": {},
+      "collection_audit": []
+    }
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "generated_at": "2026-11-19T20:15:29.078Z",
+  "mode": "DRY_RUN",
+  "replace": false,
+  "total": 1,
+  "ok": 1,
+  "review": 0,
+  "errors": 0,
+  "results": [
+    {
+      "sku": "STRAT-669",
+      "code": "669",
+      "name": "Rovere Primitivo",
+      "url": "https://abetlaminati.com/decori/rovere-primitivo-669/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Root",
+      "finishes": [
+        "Lucida",
+        "Sei",
+        "Morbida",
+        "Grainwood",
+        "Climb",
+        "Zodia 3",
+        "Root",
+        "Papier",
+        "Dharma",
+        "Aquarama",
+        "Sei 2",
+        "Bark",
+        "Nutshell",
+        "Zodia",
+        "Cross",
+        "Velwood",
+        "Microline"
+      ],
+      "formats": {
+        "Lucida": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 130 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Morbida": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 130 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Grainwood": [
+          "244 × 122 cm",
+          "305 × 130 cm"
+        ],
+        "Climb": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Zodia 3": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Root": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Papier": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Dharma": [
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ],
+        "Aquarama": [
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ],
+        "Sei 2": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Bark": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Nutshell": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Cross": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Velwood": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Microline": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ]
+      },
+      "collection_audit": [
+        {
+          "name": "Legni Dark",
+          "slug": "legni-dark",
+          "type": "COLOR_EFFECT",
+          "found_on_page": true,
+          "decorative": true,
+          "finishes": [
+            "Root",
+            "Dharma",
+            "Cross",
+            "Sei",
+            "Sei 2",
+            "Climb",
+            "Aquarama",
+            "Papier",
+            "Microline",
+            "Grainwood",
+            "Lucida",
+            "Morbida",
+            "Zodia 3",
+            "Zodia",
+            "Nutshell",
+            "Bark"
+          ],
+          "default_finish": "Root"
+        },
+        {
+          "name": "Velwood",
+          "slug": "velwood",
+          "type": "COLOR_EFFECT",
+          "found_on_page": true,
+          "decorative": true,
+          "finishes": [
+            "Velwood"
+          ],
+          "default_finish": "Velwood"
+        },
+        {
+          "name": "Polaris Foldline",
+          "slug": "polaris-foldline",
+          "type": "PRODUCT_RELATED",
+          "found_on_page": true,
+          "decorative": false,
+          "finishes": [],
+          "default_finish": null
+        }
+      ]
+    }
+  ]
+}

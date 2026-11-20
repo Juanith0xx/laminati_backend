@@ -1,0 +1,118 @@
+{
+  "generated_at": "2026-11-20T18:03:30.037Z",
+  "version": "LABGRADE_V1",
+  "source_version": "LABGRADE-06-2026",
+  "mode": "DRY_RUN",
+  "base_url": "https://abetlaminati.com",
+  "catalog_totals_db": {
+    "LABGRADE": 6,
+    "LABGRADE_PLUS": 4
+  },
+  "catalog_missing_expected": [],
+  "active_thicknesses_mm": {
+    "LABGRADE": [
+      8,
+      10,
+      12,
+      13,
+      16,
+      18,
+      20
+    ],
+    "LABGRADE_PLUS": [
+      8,
+      13,
+      16,
+      18,
+      20
+    ]
+  },
+  "master_finishes": {
+    "LABGRADE": [
+      "Sei",
+      "Zodia"
+    ],
+    "LABGRADE_PLUS": [
+      "Skin"
+    ]
+  },
+  "family_summary": {
+    "LABGRADE": {
+      "total": 0,
+      "ok": 0,
+      "review": 0,
+      "errors": 0
+    },
+    "LABGRADE_PLUS": {
+      "total": 1,
+      "ok": 1,
+      "review": 0,
+      "errors": 0
+    }
+  },
+  "total": 1,
+  "ok": 1,
+  "review": 0,
+  "review_by_reason": {},
+  "errors": 0,
+  "error_by_reason": {},
+  "results": [
+    {
+      "sku": "LABP-763",
+      "code": "763",
+      "name": "White",
+      "family_code": "LABGRADE_PLUS",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/white-763/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Skin",
+      "finishes": [
+        "Skin"
+      ],
+      "formats": {
+        "Skin": [
+          "366 × 159 cm · Labgrade Plus"
+        ]
+      },
+      "thicknesses": [
+        8,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 24328,
+        "section_length": 5287,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Skin"
+        ],
+        "external_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade plus\ninterior\n8\n8, 13, 16, 18, 20\n366x159\nbrown\nbrown\nbk\nskin",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/white-763/",
+        "https://abetlaminati.com/decori/labgrade-plus-skin-white-763/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/white-763/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    }
+  ]
+}

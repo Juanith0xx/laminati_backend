@@ -1,0 +1,717 @@
+{
+  "generated_at": "2026-11-20T18:07:38.520Z",
+  "version": "LABGRADE_V1",
+  "source_version": "LABGRADE-06-2026",
+  "mode": "DRY_RUN",
+  "base_url": "https://abetlaminati.com",
+  "catalog_totals_db": {
+    "LABGRADE": 6,
+    "LABGRADE_PLUS": 4
+  },
+  "catalog_missing_expected": [],
+  "active_thicknesses_mm": {
+    "LABGRADE": [
+      8,
+      10,
+      12,
+      13,
+      16,
+      18,
+      20
+    ],
+    "LABGRADE_PLUS": [
+      8,
+      13,
+      16,
+      18,
+      20
+    ]
+  },
+  "master_finishes": {
+    "LABGRADE": [
+      "Sei",
+      "Zodia"
+    ],
+    "LABGRADE_PLUS": [
+      "Skin"
+    ]
+  },
+  "family_summary": {
+    "LABGRADE": {
+      "total": 6,
+      "ok": 6,
+      "review": 0,
+      "errors": 0
+    },
+    "LABGRADE_PLUS": {
+      "total": 4,
+      "ok": 4,
+      "review": 0,
+      "errors": 0
+    }
+  },
+  "total": 10,
+  "ok": 10,
+  "review": 0,
+  "review_by_reason": {},
+  "errors": 0,
+  "error_by_reason": {},
+  "results": [
+    {
+      "sku": "LAB-406",
+      "code": "406",
+      "name": "Bianco Primavera Labgrade",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Zodia"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 25348,
+        "section_length": 6292,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Zodia"
+        ],
+        "external_finish_hits": [
+          "morbida"
+        ],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n0.9, 8, 13, 16, 18, 20\n305x130\n420x161,\n420x186,\n305x130,\n366x161\nbrown\nbrown\nbk\nsei\nmorbida, zodia\nlabgrade\nlaminato hpl resistente ai prodotti chimici",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/bianco-primavera-406/",
+        "https://abetlaminati.com/decori/labgrade-sei-bianco-primavera-406/",
+        "https://abetlaminati.com/decori/labgrade-zodia-bianco-primavera-406/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LAB-410",
+      "code": "410",
+      "name": "Bianco Ghiaccio",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/bianco-ghiaccio-410/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 25052,
+        "section_length": 5987,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei"
+        ],
+        "external_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n305x130\nbrown\nbrown\nbk\nsei\nlabgrade\nlaminato hpl resistente ai prodotti chimici\ncore compatibility chart formats / standard finishes combinations\naltri decori per abbinamento cromatico:\ni decori mostrati sono selezionati in base alla loro affinita cromatica e possono appartenere a collezioni o prodotti diversi..\n2904 blanc glace pol\n130 bianco due 130\n1960 fenice iside\n5733 paesemio day\n5756 yayoi blue/green\n388 douglas ice\nabet laminati s.p.a.\nsocieta a socio unico\nviale industria 21\n12042 bra (cn)\nitalia\n+39 0172 419111\ninfo@abetlaminati.com\nfollow us on our\nsocial channels\ncapitale sociale\n€ 4.132.000,00 i.v.\nn. rea cn-115819\nc.f. / p.i. / reg. imprese cuneo\n00664920048\nprivacy policy\ncookie policy\ncredits\nsegnalazione di irregolarita\niscriviti alla nostra newsletter per ricevere\ntutte le informazioni su eventi e novita.\nnome*\ncognome*\nemail*\nazienda*\ncitta*\ncap*\nindirizzo*\nnazione\nafghanistan\nalbania\nalgeria\nandorra\nangola\nanguilla\nantartide\nantigua e barbuda\narabia saudita\nargentina\narmenia\naruba\naustralia",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/bianco-ghiaccio-410/",
+        "https://abetlaminati.com/decori/labgrade-sei-bianco-ghiaccio-410/",
+        "https://abetlaminati.com/decori/labgrade-zodia-bianco-ghiaccio-410/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/bianco-ghiaccio-410/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LAB-421",
+      "code": "421",
+      "name": "Nero Labgrade",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/nero-421/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Zodia"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 25466,
+        "section_length": 6420,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Zodia"
+        ],
+        "external_finish_hits": [
+          "morbida"
+        ],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n0.9, 8, 13, 16, 18, 20\n305x130\n305x130,\n366x161,\n420x161,\n420x186\nbrown\nbrown\nbk\nsei\nmorbida, zodia\nlabgrade\nlaminato hpl resistente ai prodotti chimici",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/nero-421/",
+        "https://abetlaminati.com/decori/labgrade-sei-nero-421/",
+        "https://abetlaminati.com/decori/labgrade-zodia-nero-421/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/nero-421/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LAB-475",
+      "code": "475",
+      "name": "Grigio Perla Labgrade",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/grigio-perla-475/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Zodia"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 25546,
+        "section_length": 6495,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Zodia"
+        ],
+        "external_finish_hits": [
+          "morbida"
+        ],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n0.9, 8, 13, 16, 18, 20\n305x130\n366x161,\n420x161,\n420x186,\n305x130\nbrown\nbrown\nbk\nsei\nmorbida, zodia\nlabgrade\nlaminato hpl resistente ai prodotti chimici",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/grigio-perla-475/",
+        "https://abetlaminati.com/decori/labgrade-sei-grigio-perla-475/",
+        "https://abetlaminati.com/decori/labgrade-zodia-grigio-perla-475/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/grigio-perla-475/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LAB-478",
+      "code": "478",
+      "name": "Grigio Chiaro",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/grigio-chiaro-478/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Zodia"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 24866,
+        "section_length": 5809,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Zodia"
+        ],
+        "external_finish_hits": [
+          "morbida"
+        ],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n0.9, 8, 13, 16, 18, 20\n305x130\n305x130,\n366x161,\n420x161,\n420x186\nbrown\nbrown\nbk\nsei\nzodia, morbida\nlabgrade\nlaminato hpl resistente ai prodotti chimici\ncore compatibility chart formats / standard finishes combinations\naltri decori per abbinamento cromatico:\ni decori mostrati sono selezionati in base alla loro affinita cromatica e possono appartenere a collezioni o prodotti diversi..\n413 beige ardenne\n547 tivoli greige\n418 panna crema\n585 dolomia\n6425 pastel beige bold\n1906 pike sal\nabet laminati s.p.a.\nsocieta a socio unico\nviale industria 21\n12042 bra (cn)\nitalia\n+39 0172 419111\ninfo@abetlaminati.com\nfollow us on our\nsocial channels\ncapitale sociale\n€ 4.132.000,00 i.v.\nn. rea cn-115819\nc.f. / p.i. / reg. imprese cuneo\n00664920048\nprivacy policy\ncookie policy\ncredits\nsegnalazione di irregolarita\niscriviti alla nostra newsletter per ricevere\ntutte le informazioni su eventi e novita.\nnome*\ncognome*\nemail*\nazienda*\ncitta*\ncap*\nindirizzo*\nnazione\nafghanistan\nalbania\nalgeria\nandorra\nangola\nanguilla\nantartide",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/grigio-chiaro-478/",
+        "https://abetlaminati.com/decori/labgrade-sei-grigio-chiaro-478/",
+        "https://abetlaminati.com/decori/labgrade-zodia-grigio-chiaro-478/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/grigio-chiaro-478/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LAB-810",
+      "code": "810",
+      "name": "Mini Bianco",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/mini-bianco-810/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Zodia"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 25072,
+        "section_length": 6018,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Zodia"
+        ],
+        "external_finish_hits": [
+          "morbida"
+        ],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n0.9, 8, 13, 16, 18, 20\n305x130\n420x161,\n420x186,\n305x130,\n366x161\nbrown\nbrown\nbk\nsei\nzodia, morbida\nlabgrade\nlaminato hpl resistente ai prodotti chimici\ncore compatibility chart formats / standard finishes combinations\naltri decori per abbinamento cromatico:\ni decori mostrati sono selezionati in base alla loro affinita cromatica e possono appartenere a collezioni o prodotti diversi..\n140 minib\n1678 acero ivory\n1958 fenice horus\n411 bianco\n933 samsara avorio\n1475 white moon\nabet laminati s.p.a.\nsocieta a socio unico\nviale industria 21\n12042 bra (cn)\nitalia\n+39 0172 419111\ninfo@abetlaminati.com\nfollow us on our\nsocial channels\ncapitale sociale\n€ 4.132.000,00 i.v.\nn. rea cn-115819\nc.f. / p.i. / reg. imprese cuneo\n00664920048\nprivacy policy\ncookie policy\ncredits\nsegnalazione di irregolarita\niscriviti alla nostra newsletter per ricevere\ntutte le informazioni su eventi e novita.\nnome*\ncognome*\nemail*\nazienda*\ncitta*\ncap*\nindirizzo*\nnazione\nafghanistan\nalbania\nalgeria\nandorra\nangola\nanguilla\nantartide",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/mini-bianco-810/",
+        "https://abetlaminati.com/decori/labgrade-sei-mini-bianco-810/",
+        "https://abetlaminati.com/decori/labgrade-zodia-mini-bianco-810/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/mini-bianco-810/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LABP-763",
+      "code": "763",
+      "name": "White",
+      "family_code": "LABGRADE_PLUS",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/white-763/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Skin",
+      "finishes": [
+        "Skin"
+      ],
+      "formats": {
+        "Skin": [
+          "366 × 159 cm · Labgrade Plus"
+        ]
+      },
+      "thicknesses": [
+        8,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 24336,
+        "section_length": 5287,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Skin"
+        ],
+        "external_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade plus\ninterior\n8\n8, 13, 16, 18, 20\n366x159\nbrown\nbrown\nbk\nskin",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/white-763/",
+        "https://abetlaminati.com/decori/labgrade-plus-skin-white-763/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/white-763/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LABP-764",
+      "code": "764",
+      "name": "Black",
+      "family_code": "LABGRADE_PLUS",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/black-764/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Skin",
+      "finishes": [
+        "Skin"
+      ],
+      "formats": {
+        "Skin": [
+          "366 × 159 cm · Labgrade Plus"
+        ]
+      },
+      "thicknesses": [
+        8,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 24366,
+        "section_length": 5311,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Skin"
+        ],
+        "external_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade plus\ninterior\n8\n8, 13, 16, 18, 19, 20\n366x159\nbrown\nbrown\nbk\nskin",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/black-764/",
+        "https://abetlaminati.com/decori/labgrade-plus-skin-black-764/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/black-764/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LABP-765",
+      "code": "765",
+      "name": "Grey",
+      "family_code": "LABGRADE_PLUS",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/grey-765/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Skin",
+      "finishes": [
+        "Skin"
+      ],
+      "formats": {
+        "Skin": [
+          "366 × 159 cm · Labgrade Plus"
+        ]
+      },
+      "thicknesses": [
+        8,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 24374,
+        "section_length": 5319,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Skin"
+        ],
+        "external_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade plus\ninterior\n8\n8, 13, 16, 18, 20\n366x159\nbrown\nbrown\nbk\nskin",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/grey-765/",
+        "https://abetlaminati.com/decori/labgrade-plus-skin-grey-765/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/grey-765/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "LABP-766",
+      "code": "766",
+      "name": "766",
+      "family_code": "LABGRADE_PLUS",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/766/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Skin",
+      "finishes": [
+        "Skin"
+      ],
+      "formats": {
+        "Skin": [
+          "366 × 159 cm · Labgrade Plus"
+        ]
+      },
+      "thicknesses": [
+        8,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 24365,
+        "section_length": 5324,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Skin"
+        ],
+        "external_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade plus\ninterior\n8\n8, 13, 16, 18, 20\n366x159\nbrown\nbrown\nbk\nskin",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/766/",
+        "https://abetlaminati.com/decori/labgrade-plus-skin-766/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/766/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    }
+  ]
+}

@@ -1462,9 +1462,29 @@ export const listPosProducts = async ({
         p.name,
         p.base_price,
         p.collection_id,
+        p.project_family_id,
+        p.commercial_mode,
         p.tax_rate,
         p.finish,
         p.color,
+
+        b.name AS brand,
+        pf.code AS project_family_code,
+        pf.name AS project_family_name,
+
+        COALESCE(
+          project_options.project_finishes,
+          '[]'::jsonb
+        ) AS project_finishes,
+
+        (
+          jsonb_array_length(
+            COALESCE(
+              project_options.project_finishes,
+              '[]'::jsonb
+            )
+          ) > 0
+        ) AS technical_options_configured,
 
         v.promotion_id,
         v.promotion_name,
@@ -1535,6 +1555,34 @@ export const listPosProducts = async ({
 
       LEFT JOIN vw_product_catalog v
         ON v.id = p.id
+
+      LEFT JOIN brands b
+        ON b.id = p.brand_id
+
+      LEFT JOIN project_product_families pf
+        ON pf.id = p.project_family_id
+
+      LEFT JOIN LATERAL (
+        SELECT
+          jsonb_agg(
+            jsonb_build_object(
+              'id', f.id,
+              'name', f.name,
+              'is_default', ppf.is_default
+            )
+            ORDER BY
+              ppf.is_default DESC,
+              f.sort_order,
+              f.name
+          ) AS project_finishes
+        FROM product_project_finishes ppf
+        JOIN project_family_finishes f
+          ON f.id = ppf.finish_id
+         AND f.is_active = TRUE
+        WHERE ppf.product_id = p.id
+          AND ppf.is_active = TRUE
+      ) project_options
+        ON TRUE
 
       LEFT JOIN inventory i
         ON i.product_id = p.id
@@ -1683,9 +1731,83 @@ export const listProjectQuotationProducts = async ({
         p.brand_id,
         p.category_id,
         p.collection_id,
+        p.project_family_id,
+        p.commercial_mode,
         p.is_active,
-        p.allow_sale
+        p.allow_sale,
+
+        b.name AS brand,
+        pf.code AS project_family_code,
+        pf.name AS project_family_name,
+
+        COALESCE(
+          project_options.project_finishes,
+          '[]'::jsonb
+        ) AS project_finishes,
+
+        (
+          jsonb_array_length(
+            COALESCE(
+              project_options.project_finishes,
+              '[]'::jsonb
+            )
+          ) > 0
+        ) AS technical_options_configured,
+
+        img.id AS primary_image_id,
+        img.image_url AS primary_image_image_url,
+        img.alt_text AS primary_image_alt_text,
+        img.storage_provider AS primary_image_storage_provider,
+        img.thumbnail_key AS primary_image_thumbnail_key,
+        img.card_key AS primary_image_card_key
+
       FROM products p
+
+      LEFT JOIN brands b
+        ON b.id = p.brand_id
+
+      LEFT JOIN project_product_families pf
+        ON pf.id = p.project_family_id
+
+      LEFT JOIN LATERAL (
+        SELECT
+          jsonb_agg(
+            jsonb_build_object(
+              'id', f.id,
+              'name', f.name,
+              'is_default', ppf.is_default
+            )
+            ORDER BY
+              ppf.is_default DESC,
+              f.sort_order,
+              f.name
+          ) AS project_finishes
+        FROM product_project_finishes ppf
+        JOIN project_family_finishes f
+          ON f.id = ppf.finish_id
+         AND f.is_active = TRUE
+        WHERE ppf.product_id = p.id
+          AND ppf.is_active = TRUE
+      ) project_options
+        ON TRUE
+
+      LEFT JOIN LATERAL (
+        SELECT
+          pi.id,
+          pi.image_url,
+          pi.alt_text,
+          pi.storage_provider,
+          pi.thumbnail_key,
+          pi.card_key
+        FROM product_images pi
+        WHERE pi.product_id = p.id
+        ORDER BY
+          pi.is_primary DESC,
+          pi.sort_order ASC,
+          pi.created_at ASC
+        LIMIT 1
+      ) img
+        ON TRUE
       WHERE ${conditions.join(" AND ")}
       ORDER BY
         ${searchOrderSql}
@@ -1696,11 +1818,19 @@ export const listProjectQuotationProducts = async ({
     values
   );
 
+  const products =
+    await Promise.all(
+      result.rows.map(
+        (product) =>
+          resolvePosProductImage(product)
+      )
+    );
+
   return {
     query: search,
     limit,
-    count: result.rows.length,
-    products: result.rows,
+    count: products.length,
+    products,
   };
 };
 

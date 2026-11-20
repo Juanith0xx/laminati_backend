@@ -1,0 +1,142 @@
+[2026-11-20T14:37:42.249Z] [INFO] === Apply Stratificato / Abet from validated report V2 ===
+[2026-11-20T14:37:42.249Z] [INFO] Modo: APPLY
+[2026-11-20T14:37:42.249Z] [INFO] Log: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_stratificato_report_2026-11-20T14-37-42-249Z.log
+[2026-11-20T14:37:42.249Z] [INFO] Progreso: cada 5 producto(s)
+[2026-11-20T14:37:43.838Z] [INFO] Reporte: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/stratificato_abet_sync_v2_2026-11-20T13-09-22-992Z.json
+[2026-11-20T14:37:43.839Z] [INFO] Reporte versión: V2
+[2026-11-20T14:37:43.840Z] [INFO] Total auditado: 654
+[2026-11-20T14:37:43.840Z] [INFO] Aprobados DRY_RUN_OK: 565
+[2026-11-20T14:37:43.840Z] [INFO] REVIEW ignorados: 89
+[2026-11-20T14:37:43.840Z] [INFO] ERROR en reporte: 0
+[2026-11-20T14:37:43.841Z] [INFO] Acabados maestros utilizados: 26
+[2026-11-20T14:37:43.841Z] [INFO] Relaciones a insertar/actualizar: 5216
+[2026-11-20T14:37:44.046Z] [INFO] BEGIN OK. Transacción abierta.
+[2026-11-20T14:37:44.455Z] [INFO] PROGRESO 1/565 productos (0.2%) | 1/5216 relaciones (0.0%) | último=STRAT-1210 | default=Lucida | transcurrido=00:00:02
+[2026-11-20T14:37:46.098Z] [INFO] PROGRESO 5/565 productos (0.9%) | 5/5216 relaciones (0.1%) | último=STRAT-1233 | default=Lucida | transcurrido=00:00:03
+[2026-11-20T14:37:48.302Z] [INFO] PROGRESO 10/565 productos (1.8%) | 10/5216 relaciones (0.2%) | último=STRAT-1243 | default=Lucida | transcurrido=00:00:06
+[2026-11-20T14:37:52.296Z] [INFO] PROGRESO 15/565 productos (2.7%) | 23/5216 relaciones (0.4%) | último=STRAT-130 | default=66 | transcurrido=00:00:10
+[2026-11-20T14:38:10.830Z] [INFO] PROGRESO 20/565 productos (3.5%) | 87/5216 relaciones (1.7%) | último=STRAT-1354 | default=Root | transcurrido=00:00:28
+[2026-11-20T14:38:29.672Z] [INFO] PROGRESO 25/565 productos (4.4%) | 151/5216 relaciones (2.9%) | último=STRAT-1373 | default=Root | transcurrido=00:00:47
+[2026-11-20T14:38:51.193Z] [INFO] PROGRESO 30/565 productos (5.3%) | 228/5216 relaciones (4.4%) | último=STRAT-1384 | default=Grainwood | transcurrido=00:01:08
+[2026-11-20T14:39:13.090Z] [INFO] PROGRESO 35/565 productos (6.2%) | 305/5216 relaciones (5.8%) | último=STRAT-1389 | default=Cross | transcurrido=00:01:30
+[2026-11-20T14:39:34.799Z] [INFO] PROGRESO 40/565 productos (7.1%) | 381/5216 relaciones (7.3%) | último=STRAT-1395 | default=Root | transcurrido=00:01:52
+[2026-11-20T14:39:42.067Z] [INFO] PROGRESO 45/565 productos (8.0%) | 405/5216 relaciones (7.8%) | último=STRAT-1432 | default=Lucida | transcurrido=00:01:59
+[2026-11-20T14:39:44.700Z] [INFO] PROGRESO 50/565 productos (8.8%) | 410/5216 relaciones (7.9%) | último=STRAT-1443 | default=Lucida | transcurrido=00:02:02
+[2026-11-20T14:39:55.487Z] [INFO] PROGRESO 55/565 productos (9.7%) | 447/5216 relaciones (8.6%) | último=STRAT-1452 | default=Climb | transcurrido=00:02:13
+[2026-11-20T14:40:12.589Z] [INFO] PROGRESO 60/565 productos (10.6%) | 507/5216 relaciones (9.7%) | último=STRAT-1457 | default=Lucida | transcurrido=00:02:30
+[2026-11-20T14:40:28.252Z] [INFO] PROGRESO 65/565 productos (11.5%) | 560/5216 relaciones (10.7%) | último=STRAT-1466 | default=Ostuni | transcurrido=00:02:46
+[2026-11-20T14:40:34.091Z] [INFO] PROGRESO 70/565 productos (12.4%) | 576/5216 relaciones (11.0%) | último=STRAT-1473 | default=Geo | transcurrido=00:02:51
+[2026-11-20T14:40:46.275Z] [INFO] PROGRESO 75/565 productos (13.3%) | 617/5216 relaciones (11.8%) | último=STRAT-1479 | default=Geo | transcurrido=00:03:04
+[2026-11-20T14:41:03.684Z] [INFO] PROGRESO 80/565 productos (14.2%) | 676/5216 relaciones (13.0%) | último=STRAT-1484 | default=Climb | transcurrido=00:03:21
+[2026-11-20T14:41:18.022Z] [INFO] PROGRESO 85/565 productos (15.0%) | 725/5216 relaciones (13.9%) | último=STRAT-1611 | default=Papier | transcurrido=00:03:35
+[2026-11-20T14:41:39.830Z] [INFO] PROGRESO 90/565 productos (15.9%) | 800/5216 relaciones (15.3%) | último=STRAT-1661 | default=Root | transcurrido=00:03:57
+[2026-11-20T14:42:03.076Z] [INFO] PROGRESO 95/565 productos (16.8%) | 884/5216 relaciones (16.9%) | último=STRAT-1801 | default=66 | transcurrido=00:04:20
+[2026-11-20T14:42:25.609Z] [INFO] PROGRESO 100/565 productos (17.7%) | 985/5216 relaciones (18.9%) | último=STRAT-1813 | default=66 | transcurrido=00:04:43
+[2026-11-20T14:42:54.583Z] [INFO] PROGRESO 105/565 productos (18.6%) | 1085/5216 relaciones (20.8%) | último=STRAT-1821 | default=Sei | transcurrido=00:05:12
+[2026-11-20T14:43:21.618Z] [INFO] PROGRESO 110/565 productos (19.5%) | 1185/5216 relaciones (22.7%) | último=STRAT-1826 | default=Sei | transcurrido=00:05:39
+[2026-11-20T14:43:47.329Z] [INFO] PROGRESO 115/565 productos (20.4%) | 1283/5216 relaciones (24.6%) | último=STRAT-1831 | default=Sei | transcurrido=00:06:05
+[2026-11-20T14:44:01.247Z] [INFO] PROGRESO 120/565 productos (21.2%) | 1339/5216 relaciones (25.7%) | último=STRAT-1843 | default=Sei | transcurrido=00:06:18
+[2026-11-20T14:44:18.143Z] [INFO] PROGRESO 125/565 productos (22.1%) | 1404/5216 relaciones (26.9%) | último=STRAT-1852 | default=66 | transcurrido=00:06:35
+[2026-11-20T14:44:46.204Z] [INFO] PROGRESO 130/565 productos (23.0%) | 1504/5216 relaciones (28.8%) | último=STRAT-1870 | default=Sei | transcurrido=00:07:03
+[2026-11-20T14:45:03.914Z] [INFO] PROGRESO 135/565 productos (23.9%) | 1566/5216 relaciones (30.0%) | último=STRAT-1902 | default=Aquarama | transcurrido=00:07:21
+[2026-11-20T14:45:07.090Z] [INFO] PROGRESO 140/565 productos (24.8%) | 1571/5216 relaciones (30.1%) | último=STRAT-1907 | default=Aquarama | transcurrido=00:07:24
+[2026-11-20T14:45:09.765Z] [INFO] PROGRESO 145/565 productos (25.7%) | 1576/5216 relaciones (30.2%) | último=STRAT-1928 | default=Papier | transcurrido=00:07:27
+[2026-11-20T14:45:22.961Z] [INFO] PROGRESO 150/565 productos (26.5%) | 1623/5216 relaciones (31.1%) | último=STRAT-1941 | default=Sei | transcurrido=00:07:40
+[2026-11-20T14:45:49.895Z] [INFO] PROGRESO 155/565 productos (27.4%) | 1720/5216 relaciones (33.0%) | último=STRAT-1946 | default=Sei | transcurrido=00:08:07
+[2026-11-20T14:46:09.044Z] [INFO] PROGRESO 160/565 productos (28.3%) | 1789/5216 relaciones (34.3%) | último=STRAT-1951 | default=Aquarama | transcurrido=00:08:26
+[2026-11-20T14:46:31.264Z] [INFO] PROGRESO 165/565 productos (29.2%) | 1867/5216 relaciones (35.8%) | último=STRAT-1956 | default=Root | transcurrido=00:08:49
+[2026-11-20T14:46:50.003Z] [INFO] PROGRESO 170/565 productos (30.1%) | 1943/5216 relaciones (37.3%) | último=STRAT-1961 | default=Cross | transcurrido=00:09:07
+[2026-11-20T14:47:03.519Z] [INFO] PROGRESO 175/565 productos (31.0%) | 1991/5216 relaciones (38.2%) | último=STRAT-1966 | default=Grana 2 | transcurrido=00:09:21
+[2026-11-20T14:47:14.580Z] [INFO] PROGRESO 180/565 productos (31.9%) | 2026/5216 relaciones (38.8%) | último=STRAT-1971 | default=Grainwood | transcurrido=00:09:32
+[2026-11-20T14:47:21.544Z] [INFO] PROGRESO 185/565 productos (32.7%) | 2047/5216 relaciones (39.2%) | último=STRAT-1976 | default=Sei | transcurrido=00:09:39
+[2026-11-20T14:47:28.917Z] [INFO] PROGRESO 190/565 productos (33.6%) | 2069/5216 relaciones (39.7%) | último=STRAT-271 | default=Aquarama | transcurrido=00:09:46
+[2026-11-20T14:47:38.030Z] [INFO] PROGRESO 195/565 productos (34.5%) | 2098/5216 relaciones (40.2%) | último=STRAT-2821 | default=Lucida | transcurrido=00:09:55
+[2026-11-20T14:47:40.485Z] [INFO] PROGRESO 200/565 productos (35.4%) | 2103/5216 relaciones (40.3%) | último=STRAT-2826 | default=Lucida | transcurrido=00:09:58
+[2026-11-20T14:47:43.153Z] [INFO] PROGRESO 205/565 productos (36.3%) | 2108/5216 relaciones (40.4%) | último=STRAT-2831 | default=Lucida | transcurrido=00:10:00
+[2026-11-20T14:47:49.192Z] [INFO] PROGRESO 210/565 productos (37.2%) | 2127/5216 relaciones (40.8%) | último=STRAT-312 | default=Root | transcurrido=00:10:06
+[2026-11-20T14:48:09.977Z] [INFO] PROGRESO 215/565 productos (38.1%) | 2202/5216 relaciones (42.2%) | último=STRAT-381 | default=Microline | transcurrido=00:10:27
+[2026-11-20T14:48:30.512Z] [INFO] PROGRESO 220/565 productos (38.9%) | 2278/5216 relaciones (43.7%) | último=STRAT-388 | default=Microline | transcurrido=00:10:48
+[2026-11-20T14:48:53.702Z] [INFO] PROGRESO 225/565 productos (39.8%) | 2362/5216 relaciones (45.3%) | último=STRAT-409 | default=66 | transcurrido=00:11:11
+[2026-11-20T14:49:20.431Z] [INFO] PROGRESO 230/565 productos (40.7%) | 2459/5216 relaciones (47.1%) | último=STRAT-414 | default=66 | transcurrido=00:11:38
+[2026-11-20T14:49:46.749Z] [INFO] PROGRESO 235/565 productos (41.6%) | 2554/5216 relaciones (49.0%) | último=STRAT-421 | default=66 | transcurrido=00:12:04
+[2026-11-20T14:50:14.702Z] [INFO] PROGRESO 240/565 productos (42.5%) | 2654/5216 relaciones (50.9%) | último=STRAT-428 | default=Sei | transcurrido=00:12:32
+[2026-11-20T14:50:42.886Z] [INFO] PROGRESO 245/565 productos (43.4%) | 2754/5216 relaciones (52.8%) | último=STRAT-440 | default=Sei | transcurrido=00:13:00
+[2026-11-20T14:51:08.159Z] [INFO] PROGRESO 250/565 productos (44.2%) | 2855/5216 relaciones (54.7%) | último=STRAT-454 | default=66 | transcurrido=00:13:25
+[2026-11-20T14:51:32.426Z] [INFO] PROGRESO 255/565 productos (45.1%) | 2955/5216 relaciones (56.7%) | último=STRAT-472 | default=Sei | transcurrido=00:13:50
+[2026-11-20T14:52:01.406Z] [INFO] PROGRESO 260/565 productos (46.0%) | 3061/5216 relaciones (58.7%) | último=STRAT-479 | default=Sei | transcurrido=00:14:19
+[2026-11-20T14:52:30.689Z] [INFO] PROGRESO 265/565 productos (46.9%) | 3161/5216 relaciones (60.6%) | último=STRAT-487 | default=66 | transcurrido=00:14:48
+[2026-11-20T14:52:54.041Z] [INFO] PROGRESO 270/565 productos (47.8%) | 3242/5216 relaciones (62.2%) | último=STRAT-5377 | default=Lucida | transcurrido=00:15:11
+[2026-11-20T14:53:10.219Z] [INFO] PROGRESO 275/565 productos (48.7%) | 3297/5216 relaciones (63.2%) | último=STRAT-559 | default=Climb | transcurrido=00:15:27
+[2026-11-20T14:53:21.688Z] [INFO] PROGRESO 280/565 productos (49.6%) | 3334/5216 relaciones (63.9%) | último=STRAT-571 | default=Papier | transcurrido=00:15:39
+[2026-11-20T14:53:28.548Z] [INFO] PROGRESO 285/565 productos (50.4%) | 3359/5216 relaciones (64.4%) | último=STRAT-5726 | default=Sei | transcurrido=00:15:46
+[2026-11-20T14:53:36.639Z] [INFO] PROGRESO 290/565 productos (51.3%) | 3384/5216 relaciones (64.9%) | último=STRAT-5731 | default=Sei | transcurrido=00:15:54
+[2026-11-20T14:53:44.729Z] [INFO] PROGRESO 295/565 productos (52.2%) | 3409/5216 relaciones (65.4%) | último=STRAT-5736 | default=Lucida | transcurrido=00:16:02
+[2026-11-20T14:53:51.083Z] [INFO] PROGRESO 300/565 productos (53.1%) | 3434/5216 relaciones (65.8%) | último=STRAT-5741 | default=Sei | transcurrido=00:16:08
+[2026-11-20T14:53:59.505Z] [INFO] PROGRESO 305/565 productos (54.0%) | 3459/5216 relaciones (66.3%) | último=STRAT-5746 | default=Sei | transcurrido=00:16:17
+[2026-11-20T14:54:07.464Z] [INFO] PROGRESO 310/565 productos (54.9%) | 3484/5216 relaciones (66.8%) | último=STRAT-5751 | default=Millerighe | transcurrido=00:16:25
+[2026-11-20T14:54:15.344Z] [INFO] PROGRESO 315/565 productos (55.8%) | 3509/5216 relaciones (67.3%) | último=STRAT-5756 | default=Sei | transcurrido=00:16:33
+[2026-11-20T14:54:22.205Z] [INFO] PROGRESO 320/565 productos (56.6%) | 3528/5216 relaciones (67.6%) | último=STRAT-5800 | default=Lucida | transcurrido=00:16:39
+[2026-11-20T14:54:24.972Z] [INFO] PROGRESO 325/565 productos (57.5%) | 3533/5216 relaciones (67.7%) | último=STRAT-5805 | default=Lucida | transcurrido=00:16:42
+[2026-11-20T14:54:27.839Z] [INFO] PROGRESO 330/565 productos (58.4%) | 3538/5216 relaciones (67.8%) | último=STRAT-5810 | default=Lucida | transcurrido=00:16:45
+[2026-11-20T14:54:30.809Z] [INFO] PROGRESO 335/565 productos (59.3%) | 3543/5216 relaciones (67.9%) | último=STRAT-5815 | default=Lucida | transcurrido=00:16:48
+[2026-11-20T14:54:33.575Z] [INFO] PROGRESO 340/565 productos (60.2%) | 3548/5216 relaciones (68.0%) | último=STRAT-5820 | default=Lucida | transcurrido=00:16:51
+[2026-11-20T14:54:36.340Z] [INFO] PROGRESO 345/565 productos (61.1%) | 3553/5216 relaciones (68.1%) | último=STRAT-5825 | default=Lucida | transcurrido=00:16:54
+[2026-11-20T14:54:47.706Z] [INFO] PROGRESO 350/565 productos (61.9%) | 3588/5216 relaciones (68.8%) | último=STRAT-595 | default=Climb | transcurrido=00:17:05
+[2026-11-20T14:55:05.112Z] [INFO] PROGRESO 355/565 productos (62.8%) | 3656/5216 relaciones (70.1%) | último=STRAT-604 | default=Grainwood | transcurrido=00:17:22
+[2026-11-20T14:55:22.009Z] [INFO] PROGRESO 360/565 productos (63.7%) | 3717/5216 relaciones (71.3%) | último=STRAT-6111 | default=Lucida | transcurrido=00:17:39
+[2026-11-20T14:55:24.264Z] [INFO] PROGRESO 365/565 productos (64.6%) | 3723/5216 relaciones (71.4%) | último=STRAT-6117 | default=Lucida | transcurrido=00:17:42
+[2026-11-20T14:55:31.328Z] [INFO] PROGRESO 370/565 productos (65.5%) | 3746/5216 relaciones (71.8%) | último=STRAT-619 | default=Papier | transcurrido=00:17:49
+[2026-11-20T14:55:40.030Z] [INFO] PROGRESO 375/565 productos (66.4%) | 3779/5216 relaciones (72.5%) | último=STRAT-6266 | default=Lucida | transcurrido=00:17:57
+[2026-11-20T14:55:42.181Z] [INFO] PROGRESO 380/565 productos (67.3%) | 3784/5216 relaciones (72.5%) | último=STRAT-6271 | default=Sei | transcurrido=00:17:59
+[2026-11-20T14:55:44.231Z] [INFO] PROGRESO 385/565 productos (68.1%) | 3789/5216 relaciones (72.6%) | último=STRAT-6276 | default=Lucida | transcurrido=00:18:01
+[2026-11-20T14:55:46.279Z] [INFO] PROGRESO 390/565 productos (69.0%) | 3794/5216 relaciones (72.7%) | último=STRAT-6281 | default=66 | transcurrido=00:18:04
+[2026-11-20T14:55:48.531Z] [INFO] PROGRESO 395/565 productos (69.9%) | 3800/5216 relaciones (72.9%) | último=STRAT-6286 | default=Sei | transcurrido=00:18:06
+[2026-11-20T14:55:54.266Z] [INFO] PROGRESO 400/565 productos (70.8%) | 3821/5216 relaciones (73.3%) | último=STRAT-630 | default=Grainwood | transcurrido=00:18:12
+[2026-11-20T14:56:00.820Z] [INFO] PROGRESO 405/565 productos (71.7%) | 3840/5216 relaciones (73.6%) | último=STRAT-6314 | default=Geo | transcurrido=00:18:18
+[2026-11-20T14:56:03.481Z] [INFO] PROGRESO 410/565 productos (72.6%) | 3845/5216 relaciones (73.7%) | último=STRAT-6319 | default=Geo | transcurrido=00:18:21
+[2026-11-20T14:56:05.937Z] [INFO] PROGRESO 415/565 productos (73.5%) | 3850/5216 relaciones (73.8%) | último=STRAT-6324 | default=Papier | transcurrido=00:18:23
+[2026-11-20T14:56:08.603Z] [INFO] PROGRESO 420/565 productos (74.3%) | 3855/5216 relaciones (73.9%) | último=STRAT-6329 | default=Papier | transcurrido=00:18:26
+[2026-11-20T14:56:19.662Z] [INFO] PROGRESO 425/565 productos (75.2%) | 3889/5216 relaciones (74.6%) | último=STRAT-6351 | default=66 | transcurrido=00:18:37
+[2026-11-20T14:56:22.221Z] [INFO] PROGRESO 430/565 productos (76.1%) | 3894/5216 relaciones (74.7%) | último=STRAT-6356 | default=Morbida | transcurrido=00:18:39
+[2026-11-20T14:56:24.884Z] [INFO] PROGRESO 435/565 productos (77.0%) | 3899/5216 relaciones (74.8%) | último=STRAT-6361 | default=Morbida | transcurrido=00:18:42
+[2026-11-20T14:56:31.748Z] [INFO] PROGRESO 440/565 productos (77.9%) | 3918/5216 relaciones (75.1%) | último=STRAT-639 | default=Grainwood | transcurrido=00:18:49
+[2026-11-20T14:56:38.401Z] [INFO] PROGRESO 445/565 productos (78.8%) | 3938/5216 relaciones (75.5%) | último=STRAT-6410 | default=Sei | transcurrido=00:18:56
+[2026-11-20T14:56:41.371Z] [INFO] PROGRESO 450/565 productos (79.6%) | 3943/5216 relaciones (75.6%) | último=STRAT-6415 | default=Sei | transcurrido=00:18:59
+[2026-11-20T14:56:44.338Z] [INFO] PROGRESO 455/565 productos (80.5%) | 3948/5216 relaciones (75.7%) | último=STRAT-6420 | default=Sei | transcurrido=00:19:02
+[2026-11-20T14:56:46.797Z] [INFO] PROGRESO 460/565 productos (81.4%) | 3953/5216 relaciones (75.8%) | último=STRAT-6425 | default=Sei | transcurrido=00:19:04
+[2026-11-20T14:56:49.154Z] [INFO] PROGRESO 465/565 productos (82.3%) | 3958/5216 relaciones (75.9%) | último=STRAT-6430 | default=Sei | transcurrido=00:19:06
+[2026-11-20T14:57:03.078Z] [INFO] PROGRESO 470/565 productos (83.2%) | 4005/5216 relaciones (76.8%) | último=STRAT-6502 | default=Papier | transcurrido=00:19:20
+[2026-11-20T14:57:05.842Z] [INFO] PROGRESO 475/565 productos (84.1%) | 4010/5216 relaciones (76.9%) | último=STRAT-6507 | default=Papier | transcurrido=00:19:23
+[2026-11-20T14:57:08.773Z] [INFO] PROGRESO 480/565 productos (85.0%) | 4015/5216 relaciones (77.0%) | último=STRAT-6512 | default=Papier | transcurrido=00:19:26
+[2026-11-20T14:57:11.477Z] [INFO] PROGRESO 485/565 productos (85.8%) | 4020/5216 relaciones (77.1%) | último=STRAT-6517 | default=Papier | transcurrido=00:19:29
+[2026-11-20T14:57:14.239Z] [INFO] PROGRESO 490/565 productos (86.7%) | 4025/5216 relaciones (77.2%) | último=STRAT-6522 | default=Papier | transcurrido=00:19:31
+[2026-11-20T14:57:16.904Z] [INFO] PROGRESO 495/565 productos (87.6%) | 4030/5216 relaciones (77.3%) | último=STRAT-6527 | default=Papier | transcurrido=00:19:34
+[2026-11-20T14:57:38.818Z] [INFO] PROGRESO 500/565 productos (88.5%) | 4105/5216 relaciones (78.7%) | último=STRAT-661 | default=Root | transcurrido=00:19:56
+[2026-11-20T14:57:59.195Z] [INFO] PROGRESO 505/565 productos (89.4%) | 4184/5216 relaciones (80.2%) | último=STRAT-670 | default=Root | transcurrido=00:20:16
+[2026-11-20T14:58:17.218Z] [INFO] PROGRESO 510/565 productos (90.3%) | 4250/5216 relaciones (81.5%) | último=STRAT-677 | default=Aquarama | transcurrido=00:20:34
+[2026-11-20T14:58:29.811Z] [INFO] PROGRESO 515/565 productos (91.2%) | 4293/5216 relaciones (82.3%) | último=STRAT-707 | default=Climb | transcurrido=00:20:47
+[2026-11-20T14:58:46.708Z] [INFO] PROGRESO 520/565 productos (92.0%) | 4355/5216 relaciones (83.5%) | último=STRAT-812 | default=Sei | transcurrido=00:21:04
+[2026-11-20T14:59:13.857Z] [INFO] PROGRESO 525/565 productos (92.9%) | 4455/5216 relaciones (85.4%) | último=STRAT-831 | default=Sei | transcurrido=00:21:31
+[2026-11-20T14:59:42.004Z] [INFO] PROGRESO 530/565 productos (93.8%) | 4555/5216 relaciones (87.3%) | último=STRAT-837 | default=Sei | transcurrido=00:21:59
+[2026-11-20T15:00:06.991Z] [INFO] PROGRESO 535/565 productos (94.7%) | 4656/5216 relaciones (89.3%) | último=STRAT-847 | default=Sei | transcurrido=00:22:24
+[2026-11-20T15:00:30.030Z] [INFO] PROGRESO 540/565 productos (95.6%) | 4756/5216 relaciones (91.2%) | último=STRAT-853 | default=Sei | transcurrido=00:22:47
+[2026-11-20T15:00:52.871Z] [INFO] PROGRESO 545/565 productos (96.5%) | 4856/5216 relaciones (93.1%) | último=STRAT-859 | default=66 | transcurrido=00:23:10
+[2026-11-20T15:01:14.274Z] [INFO] PROGRESO 550/565 productos (97.3%) | 4950/5216 relaciones (94.9%) | último=STRAT-868 | default=Sei | transcurrido=00:23:32
+[2026-11-20T15:01:35.885Z] [INFO] PROGRESO 555/565 productos (98.2%) | 5041/5216 relaciones (96.6%) | último=STRAT-879 | default=66 | transcurrido=00:23:53
+[2026-11-20T15:01:59.119Z] [INFO] PROGRESO 560/565 productos (99.1%) | 5142/5216 relaciones (98.6%) | último=STRAT-897 | default=66 | transcurrido=00:24:16
+[2026-11-20T15:02:19.189Z] [INFO] PROGRESO 565/565 productos (100.0%) | 5216/5216 relaciones (100.0%) | último=STRAT-9796 | default=Velwood | transcurrido=00:24:36
+[2026-11-20T15:02:19.190Z] [INFO] Escritura terminada: 565 productos / 5216 relaciones.
+[2026-11-20T15:02:19.190Z] [INFO] Ejecutando COMMIT...
+[2026-11-20T15:02:19.496Z] [INFO] COMMIT OK. Cambios confirmados en PostgreSQL.
+[2026-11-20T15:02:19.496Z] [INFO] Ejecutando verificación post-COMMIT...
+[2026-11-20T15:02:19.910Z] [INFO] === VERIFICACIÓN FINAL ===
+[2026-11-20T15:02:19.910Z] [INFO] Productos Stratificato con acabados activos: 565
+[2026-11-20T15:02:19.911Z] [INFO] Relaciones de acabado activas: 5216
+[2026-11-20T15:02:19.911Z] [INFO] Productos con default activo: 565
+[2026-11-20T15:02:19.911Z] [INFO] Productos procesados en esta ejecución: 565
+[2026-11-20T15:02:19.911Z] [INFO] Relaciones procesadas en esta ejecución: 5216
+[2026-11-20T15:02:19.911Z] [INFO] DEFAULT_CHECK OK: todos los productos activos tienen exactamente 1 default.
+[2026-11-20T15:02:19.912Z] [INFO] Los 89 REVIEW del reporte no fueron procesados.
+[2026-11-20T15:02:19.912Z] [INFO] COMMIT CONFIRMADO: SÍ
+[2026-11-20T15:02:19.912Z] [INFO] PROCESO TERMINADO CORRECTAMENTE. Duración=00:24:37
+[2026-11-20T15:02:19.912Z] [INFO] Log guardado en: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_stratificato_report_2026-11-20T14-37-42-249Z.log

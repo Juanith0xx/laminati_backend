@@ -1,0 +1,56 @@
+[2026-11-20T16:19:22.497Z] [INFO] === Apply MEG / Abet from validated report V1 ===
+[2026-11-20T16:19:22.497Z] [INFO] Modo: APPLY
+[2026-11-20T16:19:22.497Z] [INFO] Log: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_meg_report_2026-11-20T16-19-22-497Z.log
+[2026-11-20T16:19:22.497Z] [INFO] Progreso: cada 5 producto(s)
+[2026-11-20T16:19:24.357Z] [INFO] Reporte: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/meg_abet_sync_v3_2026-11-20T16-08-21-484Z.json
+[2026-11-20T16:19:24.357Z] [INFO] Reporte versión: MEG_V2
+[2026-11-20T16:19:24.358Z] [INFO] Fuente técnica: MEG-07-2026
+[2026-11-20T16:19:24.358Z] [INFO] Generado: 2026-11-20T16:08:21.483Z
+[2026-11-20T16:19:24.358Z] [INFO] Total auditado: 107
+[2026-11-20T16:19:24.359Z] [INFO] Aprobados DRY_RUN_OK: 107
+[2026-11-20T16:19:24.359Z] [INFO] REVIEW: 0
+[2026-11-20T16:19:24.359Z] [INFO] ERROR: 0
+[2026-11-20T16:19:24.359Z] [INFO] Faltantes catálogo: 0
+[2026-11-20T16:19:24.359Z] [INFO] Acabados maestros utilizados: 3 (Sei, Sei Due, Climb)
+[2026-11-20T16:19:24.360Z] [INFO] Relaciones a insertar/actualizar: 321
+[2026-11-20T16:19:24.560Z] [INFO] BEGIN OK. Transacción abierta.
+[2026-11-20T16:19:25.367Z] [INFO] PROGRESO 1/107 productos (0.9%) | 3/321 relaciones (0.9%) | último=MEG-1384 | default=Sei | transcurrido=00:00:02
+[2026-11-20T16:19:28.950Z] [INFO] PROGRESO 5/107 productos (4.7%) | 15/321 relaciones (4.7%) | último=MEG-1450 | default=Climb | transcurrido=00:00:06
+[2026-11-20T16:19:33.961Z] [INFO] PROGRESO 10/107 productos (9.3%) | 30/321 relaciones (9.3%) | último=MEG-1804 | default=Sei | transcurrido=00:00:11
+[2026-11-20T16:19:38.781Z] [INFO] PROGRESO 15/107 productos (14.0%) | 45/321 relaciones (14.0%) | último=MEG-1820 | default=Sei | transcurrido=00:00:16
+[2026-11-20T16:19:44.208Z] [INFO] PROGRESO 20/107 productos (18.7%) | 60/321 relaciones (18.7%) | último=MEG-1860 | default=Sei | transcurrido=00:00:21
+[2026-11-20T16:19:49.216Z] [INFO] PROGRESO 25/107 productos (23.4%) | 75/321 relaciones (23.4%) | último=MEG-1886 | default=Sei | transcurrido=00:00:26
+[2026-11-20T16:19:54.039Z] [INFO] PROGRESO 30/107 productos (28.0%) | 90/321 relaciones (28.0%) | último=MEG-416 | default=Sei | transcurrido=00:00:31
+[2026-11-20T16:19:59.162Z] [INFO] PROGRESO 35/107 productos (32.7%) | 105/321 relaciones (32.7%) | último=MEG-450 | default=Sei | transcurrido=00:00:36
+[2026-11-20T16:20:04.381Z] [INFO] PROGRESO 40/107 productos (37.4%) | 120/321 relaciones (37.4%) | último=MEG-480 | default=Sei | transcurrido=00:00:41
+[2026-11-20T16:20:09.501Z] [INFO] PROGRESO 45/107 productos (42.1%) | 135/321 relaciones (42.1%) | último=MEG-604 | default=Sei | transcurrido=00:00:47
+[2026-11-20T16:20:14.418Z] [INFO] PROGRESO 50/107 productos (46.7%) | 150/321 relaciones (46.7%) | último=MEG-700 | default=Sei | transcurrido=00:00:51
+[2026-11-20T16:20:19.949Z] [INFO] PROGRESO 55/107 productos (51.4%) | 165/321 relaciones (51.4%) | último=MEG-713 | default=Sei | transcurrido=00:00:57
+[2026-11-20T16:20:25.068Z] [INFO] PROGRESO 60/107 productos (56.1%) | 180/321 relaciones (56.1%) | último=MEG-748 | default=Sei | transcurrido=00:01:02
+[2026-11-20T16:20:30.494Z] [INFO] PROGRESO 65/107 productos (60.7%) | 195/321 relaciones (60.7%) | último=MEG-755 | default=Sei | transcurrido=00:01:07
+[2026-11-20T16:20:35.824Z] [INFO] PROGRESO 70/107 productos (65.4%) | 210/321 relaciones (65.4%) | último=MEG-768 | default=Sei | transcurrido=00:01:13
+[2026-11-20T16:20:41.145Z] [INFO] PROGRESO 75/107 productos (70.1%) | 225/321 relaciones (70.1%) | último=MEG-774 | default=Sei | transcurrido=00:01:18
+[2026-11-20T16:20:46.469Z] [INFO] PROGRESO 80/107 productos (74.8%) | 240/321 relaciones (74.8%) | último=MEG-795 | default=Sei | transcurrido=00:01:23
+[2026-11-20T16:20:51.794Z] [INFO] PROGRESO 85/107 productos (79.4%) | 255/321 relaciones (79.4%) | último=MEG-819 | default=Sei | transcurrido=00:01:29
+[2026-11-20T16:20:56.920Z] [INFO] PROGRESO 90/107 productos (84.1%) | 270/321 relaciones (84.1%) | último=MEG-842 | default=Sei | transcurrido=00:01:34
+[2026-11-20T16:21:02.130Z] [INFO] PROGRESO 95/107 productos (88.8%) | 285/321 relaciones (88.8%) | último=MEG-851 | default=Sei | transcurrido=00:01:39
+[2026-11-20T16:21:07.358Z] [INFO] PROGRESO 100/107 productos (93.5%) | 300/321 relaciones (93.5%) | último=MEG-868 | default=Sei | transcurrido=00:01:44
+[2026-11-20T16:21:12.340Z] [INFO] PROGRESO 105/107 productos (98.1%) | 315/321 relaciones (98.1%) | último=MEG-893 | default=Sei | transcurrido=00:01:49
+[2026-11-20T16:21:14.526Z] [INFO] PROGRESO 107/107 productos (100.0%) | 321/321 relaciones (100.0%) | último=MEG-898 | default=Sei | transcurrido=00:01:52
+[2026-11-20T16:21:14.527Z] [INFO] Escritura terminada: 107 productos / 321 relaciones.
+[2026-11-20T16:21:14.527Z] [INFO] Ejecutando COMMIT...
+[2026-11-20T16:21:14.834Z] [INFO] COMMIT OK. Cambios confirmados en PostgreSQL.
+[2026-11-20T16:21:14.834Z] [INFO] Ejecutando verificación post-COMMIT...
+[2026-11-20T16:21:15.860Z] [INFO] === VERIFICACIÓN FINAL ===
+[2026-11-20T16:21:15.861Z] [INFO] Productos MEG con acabados activos: 107
+[2026-11-20T16:21:15.861Z] [INFO] Relaciones de acabado activas: 321
+[2026-11-20T16:21:15.861Z] [INFO] Productos con default activo: 107
+[2026-11-20T16:21:15.861Z] [INFO] Productos procesados en esta ejecución: 107
+[2026-11-20T16:21:15.862Z] [INFO] Relaciones procesadas en esta ejecución: 321
+[2026-11-20T16:21:15.862Z] [INFO] Relaciones sin formato activo: 0
+[2026-11-20T16:21:15.862Z] [INFO] DEFAULT_CHECK OK: todos los productos MEG tienen exactamente 1 default.
+[2026-11-20T16:21:15.862Z] [INFO] RELATION_CHECK OK: todos los productos MEG tienen exactamente 3 acabados activos.
+[2026-11-20T16:21:15.862Z] [INFO] FORMAT_CHECK OK: todas las relaciones MEG tienen formatos activos.
+[2026-11-20T16:21:15.863Z] [INFO] COMMIT CONFIRMADO: SÍ
+[2026-11-20T16:21:15.863Z] [INFO] PROCESO TERMINADO CORRECTAMENTE. Duración=00:01:53
+[2026-11-20T16:21:15.863Z] [INFO] Log guardado en: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_meg_report_2026-11-20T16-19-22-497Z.log

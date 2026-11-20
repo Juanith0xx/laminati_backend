@@ -1,0 +1,23 @@
+[2026-11-20T18:12:48.142Z] [INFO] === Apply Labgrade / Abet from validated report V2 ===
+[2026-11-20T18:12:48.142Z] [INFO] Modo: DRY-RUN
+[2026-11-20T18:12:48.142Z] [INFO] Log: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_labgrade_report_2026-11-20T18-12-48-142Z.log
+[2026-11-20T18:12:48.142Z] [INFO] Progreso: cada 2 producto(s)
+[2026-11-20T18:12:49.968Z] [INFO] Reporte: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/labgrade_abet_sync_v1_2026-11-20T18-07-38-520Z.json
+[2026-11-20T18:12:49.969Z] [INFO] Reporte versión: LABGRADE_V1
+[2026-11-20T18:12:49.969Z] [INFO] Fuente técnica: LABGRADE-06-2026
+[2026-11-20T18:12:49.969Z] [INFO] Generado: 2026-11-20T18:07:38.520Z
+[2026-11-20T18:12:49.969Z] [INFO] Total auditado: 10
+[2026-11-20T18:12:49.969Z] [INFO] Aprobados DRY_RUN_OK: 10
+[2026-11-20T18:12:49.969Z] [INFO] LABGRADE aprobados: 6
+[2026-11-20T18:12:49.969Z] [INFO] LABGRADE_PLUS aprobados: 4
+[2026-11-20T18:12:49.969Z] [INFO] REVIEW: 0
+[2026-11-20T18:12:49.969Z] [INFO] ERROR: 0
+[2026-11-20T18:12:49.969Z] [INFO] Faltantes catálogo: 0
+[2026-11-20T18:12:49.969Z] [INFO] Relaciones a insertar/actualizar: 15
+[2026-11-20T18:12:49.969Z] [INFO]   LABGRADE: 11
+[2026-11-20T18:12:49.969Z] [INFO]   LABGRADE_PLUS: 4
+[2026-11-20T18:12:49.969Z] [INFO] Relaciones activas existentes compatibles: 0
+[2026-11-20T18:12:49.969Z] [INFO] PREFLIGHT OK. No se modificó PostgreSQL.
+[2026-11-20T18:12:49.969Z] [INFO] Para aplicar exige: --apply --confirm=LABGRADE_REPORT --confirm-db=railway --confirm-count=<cantidad>
+[2026-11-20T18:12:49.969Z] [INFO] PROCESO TERMINADO CORRECTAMENTE. Duración=00:00:01
+[2026-11-20T18:12:49.970Z] [INFO] Log guardado en: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_labgrade_report_2026-11-20T18-12-48-142Z.log

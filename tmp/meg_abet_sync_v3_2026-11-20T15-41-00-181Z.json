@@ -1,0 +1,821 @@
+{
+  "generated_at": "2026-11-20T15:41:00.180Z",
+  "version": "MEG_V2",
+  "source_version": "MEG-07-2026",
+  "mode": "DRY_RUN",
+  "base_url": "https://abetlaminati.com",
+  "total_catalog_db": 106,
+  "catalog_missing_expected": [
+    {
+      "sku": "MEG-405",
+      "code": "405",
+      "name": "Bianco Porcellana",
+      "source": "MEG 07/2026"
+    }
+  ],
+  "active_thicknesses_mm": [
+    2,
+    3,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18
+  ],
+  "master_finishes": [
+    "Sei",
+    "Sei Due",
+    "Climb"
+  ],
+  "total": 10,
+  "ok": 10,
+  "review": 0,
+  "review_by_reason": {},
+  "errors": 0,
+  "error_by_reason": {},
+  "results": [
+    {
+      "sku": "MEG-1384",
+      "code": "1384",
+      "name": "Frassino Maggiore",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/frassino-maggiore-1384/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24939,
+        "section_length": 5877,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 4, 6, 8, 10, 12\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/frassino-maggiore-1384/",
+        "https://abetlaminati.com/decori/meg-sei-frassino-maggiore-1384/",
+        "https://abetlaminati.com/decori/meg-sei-due-frassino-maggiore-1384/",
+        "https://abetlaminati.com/decori/meg-climb-frassino-maggiore-1384/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/frassino-maggiore-1384/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1387",
+      "code": "1387",
+      "name": "Smoked Wood",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/smoked-wood-1387/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24920,
+        "section_length": 5866,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/smoked-wood-1387/",
+        "https://abetlaminati.com/decori/meg-sei-smoked-wood-1387/",
+        "https://abetlaminati.com/decori/meg-sei-due-smoked-wood-1387/",
+        "https://abetlaminati.com/decori/meg-climb-smoked-wood-1387/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/smoked-wood-1387/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1388",
+      "code": "1388",
+      "name": "Zebrano Grigio",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/zebrano-grigio-1388/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24925,
+        "section_length": 5870,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/zebrano-grigio-1388/",
+        "https://abetlaminati.com/decori/meg-sei-zebrano-grigio-1388/",
+        "https://abetlaminati.com/decori/meg-sei-due-zebrano-grigio-1388/",
+        "https://abetlaminati.com/decori/meg-climb-zebrano-grigio-1388/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/zebrano-grigio-1388/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1389",
+      "code": "1389",
+      "name": "Noce Iseo",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/noce-iseo-1389/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24981,
+        "section_length": 5929,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/noce-iseo-1389/",
+        "https://abetlaminati.com/decori/meg-sei-noce-iseo-1389/",
+        "https://abetlaminati.com/decori/meg-sei-due-noce-iseo-1389/",
+        "https://abetlaminati.com/decori/meg-climb-noce-iseo-1389/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/noce-iseo-1389/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1450",
+      "code": "1450",
+      "name": "Industrial",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/industrial-1450/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Climb",
+      "finishes": [
+        "Climb",
+        "Sei",
+        "Sei Due"
+      ],
+      "formats": {
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24780,
+        "section_length": 5726,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Climb",
+          "Sei",
+          "Sei Due"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nclimb\nsei, sei due\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/industrial-1450/",
+        "https://abetlaminati.com/decori/meg-sei-industrial-1450/",
+        "https://abetlaminati.com/decori/meg-sei-due-industrial-1450/",
+        "https://abetlaminati.com/decori/meg-climb-industrial-1450/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/industrial-1450/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1453",
+      "code": "1453",
+      "name": "Piombo",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/piombo-1453/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Climb",
+      "finishes": [
+        "Climb",
+        "Sei",
+        "Sei Due"
+      ],
+      "formats": {
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 25233,
+        "section_length": 6183,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Climb",
+          "Sei",
+          "Sei Due"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nclimb\nsei, sei due\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/piombo-1453/",
+        "https://abetlaminati.com/decori/meg-sei-piombo-1453/",
+        "https://abetlaminati.com/decori/meg-sei-due-piombo-1453/",
+        "https://abetlaminati.com/decori/meg-climb-piombo-1453/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/piombo-1453/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1492",
+      "code": "1492",
+      "name": "Travertino Vesta",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/travertino-vesta-1492/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Climb",
+      "finishes": [
+        "Climb",
+        "Sei",
+        "Sei Due"
+      ],
+      "formats": {
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24426,
+        "section_length": 5397,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Climb",
+          "Sei",
+          "Sei Due"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n1.2, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nclimb\nsei, sei due\nmeg\npannelli decorativi per facciate e rivestimenti esterni\ncore compatibility chart formats / standard finishes combinations\naltri decori per abbinamento cromatico:\ni decori mostrati sono selezionati in base alla loro affinita cromatica e possono appartenere a collezioni o prodotti diversi..\n1475 white moon\n388 douglas ice\n819 bianco meg\n406 bianco primavera\n128 bianco interni\n6284 sprinkle 03 pastel\nabet laminati s.p.a.\nsocieta a socio unico\nviale industria 21\n12042 bra (cn)\nitalia\n+39 0172 419111\ninfo@abetlaminati.com\nfollow us on our\nsocial channels\ncapitale sociale\n€ 4.132.000,00 i.v.\nn. rea cn-115819\nc.f. / p.i. / reg. imprese cuneo\n00664920048\nprivacy policy\ncookie policy\ncredits\nsegnalazione di irregolarita\niscriviti alla nostra newsletter per ricevere\ntutte le informazioni su eventi e novita.\nnome*\ncognome*\nemail*\nazienda*\ncitta*\ncap*\nindirizzo*",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/travertino-vesta-1492/",
+        "https://abetlaminati.com/decori/meg-sei-travertino-vesta-1492/",
+        "https://abetlaminati.com/decori/meg-sei-due-travertino-vesta-1492/",
+        "https://abetlaminati.com/decori/meg-climb-travertino-vesta-1492/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/travertino-vesta-1492/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1677",
+      "code": "1677",
+      "name": "Acero Boston",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/acero-boston-1677/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24935,
+        "section_length": 5878,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/acero-boston-1677/",
+        "https://abetlaminati.com/decori/meg-sei-acero-boston-1677/",
+        "https://abetlaminati.com/decori/meg-sei-due-acero-boston-1677/",
+        "https://abetlaminati.com/decori/meg-climb-acero-boston-1677/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/acero-boston-1677/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1801",
+      "code": "1801",
+      "name": "Giallo Ocra",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/giallo-ocra-1801/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24985,
+        "section_length": 5929,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/giallo-ocra-1801/",
+        "https://abetlaminati.com/decori/meg-sei-giallo-ocra-1801/",
+        "https://abetlaminati.com/decori/meg-sei-due-giallo-ocra-1801/",
+        "https://abetlaminati.com/decori/meg-climb-giallo-ocra-1801/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/giallo-ocra-1801/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    },
+    {
+      "sku": "MEG-1804",
+      "code": "1804",
+      "name": "Blu Tenebre",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/blu-tenebre-1804/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 24871,
+        "section_length": 5817,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni\ncore compatibility chart formats / standard finishes combinations\naltri decori per abbinamento cromatico:\ni decori mostrati sono selezionati in base alla loro affinita cromatica e possono appartenere a collezioni o prodotti diversi..\n5732 paesemio night\n5729 knock-out black\n852 big bleu\n1928 urano\n1832 grigio tempesta\n5725 fishbone grey\nabet laminati s.p.a.\nsocieta a socio unico\nviale industria 21\n12042 bra (cn)\nitalia\n+39 0172 419111\ninfo@abetlaminati.com\nfollow us on our\nsocial channels\ncapitale sociale\n€ 4.132.000,00 i.v.\nn. rea cn-115819\nc.f. / p.i. / reg. imprese cuneo\n00664920048\nprivacy policy\ncookie policy\ncredits\nsegnalazione di irregolarita\niscriviti alla nostra newsletter per ricevere\ntutte le informazioni su eventi e novita.\nnome*\ncognome*\nemail*\nazienda*\ncitta*\ncap*\nindirizzo*",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/blu-tenebre-1804/",
+        "https://abetlaminati.com/decori/meg-sei-blu-tenebre-1804/",
+        "https://abetlaminati.com/decori/meg-sei-due-blu-tenebre-1804/",
+        "https://abetlaminati.com/decori/meg-climb-blu-tenebre-1804/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/blu-tenebre-1804/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    }
+  ]
+}

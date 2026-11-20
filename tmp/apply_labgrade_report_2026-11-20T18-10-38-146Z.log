@@ -1,0 +1,14 @@
+[2026-11-20T18:10:38.147Z] [INFO] === Apply Labgrade / Abet from validated report V1 ===
+[2026-11-20T18:10:38.147Z] [INFO] Modo: DRY-RUN
+[2026-11-20T18:10:38.147Z] [INFO] Log: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_labgrade_report_2026-11-20T18-10-38-146Z.log
+[2026-11-20T18:10:38.147Z] [INFO] Progreso: cada 2 producto(s)
+[2026-11-20T18:10:38.148Z] [ERROR] ERROR FATAL: Error: LAB-410: acabados inesperados para LABGRADE. Reporte=Sei Esperado=Sei, Zodia
+    at fail (file:///home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/scripts/apply_labgrade_abet_report_v1.js:79:9)
+    at validateReport (file:///home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/scripts/apply_labgrade_abet_report_v1.js:247:7)
+    at main (file:///home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/scripts/apply_labgrade_abet_report_v1.js:522:21)
+    at file:///home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/scripts/apply_labgrade_abet_report_v1.js:646:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+[2026-11-20T18:10:38.148Z] [ERROR] PROCESO TERMINADO CON ERROR. COMMIT CONFIRMADO: NO. Duración=00:00:00
+[2026-11-20T18:10:38.148Z] [ERROR] Log guardado en: /home/juanestay/Escritorio/Dev/Laminati/laminatiword_backend/tmp/apply_labgrade_report_2026-11-20T18-10-38-146Z.log

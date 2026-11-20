@@ -1,0 +1,319 @@
+{
+  "generated_at": "2026-11-19T20:49:08.390Z",
+  "version": "V2",
+  "mode": "DRY_RUN",
+  "replace": false,
+  "retries": 3,
+  "section_wait_ms": 15000,
+  "settle_ms": 1800,
+  "total": 1,
+  "ok": 1,
+  "recovered_after_retry": 0,
+  "review": 0,
+  "review_by_reason": {},
+  "errors": 0,
+  "results": [
+    {
+      "sku": "STRAT-669",
+      "code": "669",
+      "name": "Rovere Primitivo",
+      "url": "https://abetlaminati.com/decori/rovere-primitivo-669/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "recovered_after_retry": false,
+      "attempts_used": 1,
+      "default_finish": "Root",
+      "finishes": [
+        "Lucida",
+        "Sei",
+        "Morbida",
+        "Grainwood",
+        "Climb",
+        "Zodia 3",
+        "Root",
+        "Papier",
+        "Dharma",
+        "Aquarama",
+        "Sei 2",
+        "Bark",
+        "Nutshell",
+        "Zodia",
+        "Cross",
+        "Velwood",
+        "Microline"
+      ],
+      "formats": {
+        "Lucida": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 130 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Morbida": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 130 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Grainwood": [
+          "244 × 122 cm",
+          "305 × 130 cm"
+        ],
+        "Climb": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Zodia 3": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Root": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Papier": [
+          "225 × 100 cm",
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Dharma": [
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ],
+        "Aquarama": [
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ],
+        "Sei 2": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Bark": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Nutshell": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Cross": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Velwood": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Microline": [
+          "244 × 122 cm",
+          "305 × 130 cm",
+          "420 × 130 cm"
+        ]
+      },
+      "collection_audit": [
+        {
+          "name": "Legni Dark",
+          "slug": "legni-dark",
+          "type": "COLOR_EFFECT",
+          "found_on_page": true,
+          "decorative": true,
+          "finishes": [
+            "Root",
+            "Dharma",
+            "Cross",
+            "Sei",
+            "Sei 2",
+            "Climb",
+            "Aquarama",
+            "Papier",
+            "Microline",
+            "Grainwood",
+            "Lucida",
+            "Morbida",
+            "Zodia 3",
+            "Zodia",
+            "Nutshell",
+            "Bark"
+          ],
+          "default_finish": "Root"
+        },
+        {
+          "name": "Velwood",
+          "slug": "velwood",
+          "type": "COLOR_EFFECT",
+          "found_on_page": true,
+          "decorative": true,
+          "finishes": [
+            "Velwood"
+          ],
+          "default_finish": "Velwood"
+        },
+        {
+          "name": "Polaris Foldline",
+          "slug": "polaris-foldline",
+          "type": "PRODUCT_RELATED",
+          "found_on_page": true,
+          "decorative": false,
+          "finishes": [],
+          "default_finish": null
+        }
+      ],
+      "diagnostics": {
+        "body_length": 24661,
+        "section_length": 5601,
+        "decorative_associations_db": [
+          "Velwood",
+          "Legni Dark"
+        ],
+        "associations_found_on_page": [
+          "Legni Dark",
+          "Velwood",
+          "Polaris Foldline"
+        ],
+        "decorative_associations_found_on_page": [
+          "Legni Dark",
+          "Velwood"
+        ],
+        "raw_master_finish_hits": [
+          "Root",
+          "Dharma",
+          "Cross",
+          "Sei",
+          "Sei 2",
+          "Climb",
+          "Aquarama",
+          "Papier",
+          "Microline",
+          "Grainwood",
+          "Lucida",
+          "Morbida",
+          "Zodia 3",
+          "Zodia",
+          "Nutshell",
+          "Bark",
+          "Velwood",
+          "Polaris"
+        ],
+        "matched_decorative_finishes": [
+          "Lucida",
+          "Sei",
+          "Morbida",
+          "Grainwood",
+          "Climb",
+          "Zodia 3",
+          "Root",
+          "Papier",
+          "Dharma",
+          "Aquarama",
+          "Sei 2",
+          "Bark",
+          "Nutshell",
+          "Zodia",
+          "Cross",
+          "Velwood",
+          "Microline"
+        ],
+        "rejected_no_active_formats": []
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "http_status": 200,
+          "marker_found_during_wait": true,
+          "ok": true,
+          "reason": null,
+          "diagnostics": {
+            "body_length": 24661,
+            "section_length": 5601,
+            "decorative_associations_db": [
+              "Velwood",
+              "Legni Dark"
+            ],
+            "associations_found_on_page": [
+              "Legni Dark",
+              "Velwood",
+              "Polaris Foldline"
+            ],
+            "decorative_associations_found_on_page": [
+              "Legni Dark",
+              "Velwood"
+            ],
+            "raw_master_finish_hits": [
+              "Root",
+              "Dharma",
+              "Cross",
+              "Sei",
+              "Sei 2",
+              "Climb",
+              "Aquarama",
+              "Papier",
+              "Microline",
+              "Grainwood",
+              "Lucida",
+              "Morbida",
+              "Zodia 3",
+              "Zodia",
+              "Nutshell",
+              "Bark",
+              "Velwood",
+              "Polaris"
+            ],
+            "matched_decorative_finishes": [
+              "Lucida",
+              "Sei",
+              "Morbida",
+              "Grainwood",
+              "Climb",
+              "Zodia 3",
+              "Root",
+              "Papier",
+              "Dharma",
+              "Aquarama",
+              "Sei 2",
+              "Bark",
+              "Nutshell",
+              "Zodia",
+              "Cross",
+              "Velwood",
+              "Microline"
+            ],
+            "rejected_no_active_formats": []
+          }
+        }
+      ]
+    }
+  ]
+}

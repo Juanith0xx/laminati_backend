@@ -1,0 +1,119 @@
+{
+  "generated_at": "2026-11-20T15:39:11.747Z",
+  "version": "MEG_V2",
+  "source_version": "MEG-07-2026",
+  "mode": "DRY_RUN",
+  "base_url": "https://abetlaminati.com",
+  "total_catalog_db": 106,
+  "catalog_missing_expected": [
+    {
+      "sku": "MEG-405",
+      "code": "405",
+      "name": "Bianco Porcellana",
+      "source": "MEG 07/2026"
+    }
+  ],
+  "active_thicknesses_mm": [
+    2,
+    3,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18
+  ],
+  "master_finishes": [
+    "Sei",
+    "Sei Due",
+    "Climb"
+  ],
+  "total": 1,
+  "ok": 1,
+  "review": 0,
+  "review_by_reason": {},
+  "errors": 0,
+  "error_by_reason": {},
+  "results": [
+    {
+      "sku": "MEG-406",
+      "code": "406",
+      "name": "Bianco Primavera",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Sei Due",
+        "Climb"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Sei Due": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ],
+        "Climb": [
+          "305 × 130 cm",
+          "420 × 130 cm",
+          "420 × 161 cm"
+        ]
+      },
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 25348,
+        "section_length": 6292,
+        "meg_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Sei Due",
+          "Climb"
+        ],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg\nexterior\n6\n1.2, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18\n305x130\n305x130,\n420x130,\n420x161\nbrown\nbrown\nsei\nsei due, climb\nmeg\npannelli decorativi per facciate e rivestimenti esterni",
+        "parser_version": "MEG_V3_NO_EXTERIOR_CUTOFF"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/bianco-primavera-406/",
+        "https://abetlaminati.com/decori/meg-sei-bianco-primavera-406/",
+        "https://abetlaminati.com/decori/meg-sei-due-bianco-primavera-406/",
+        "https://abetlaminati.com/decori/meg-climb-bianco-primavera-406/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "meg_block_found": true
+        }
+      ]
+    }
+  ]
+}

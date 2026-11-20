@@ -1,0 +1,134 @@
+{
+  "generated_at": "2026-11-20T18:05:11.249Z",
+  "version": "LABGRADE_V1",
+  "source_version": "LABGRADE-06-2026",
+  "mode": "DRY_RUN",
+  "base_url": "https://abetlaminati.com",
+  "catalog_totals_db": {
+    "LABGRADE": 6,
+    "LABGRADE_PLUS": 4
+  },
+  "catalog_missing_expected": [],
+  "active_thicknesses_mm": {
+    "LABGRADE": [
+      8,
+      10,
+      12,
+      13,
+      16,
+      18,
+      20
+    ],
+    "LABGRADE_PLUS": [
+      8,
+      13,
+      16,
+      18,
+      20
+    ]
+  },
+  "master_finishes": {
+    "LABGRADE": [
+      "Sei",
+      "Zodia"
+    ],
+    "LABGRADE_PLUS": [
+      "Skin"
+    ]
+  },
+  "family_summary": {
+    "LABGRADE": {
+      "total": 1,
+      "ok": 1,
+      "review": 0,
+      "errors": 0
+    },
+    "LABGRADE_PLUS": {
+      "total": 0,
+      "ok": 0,
+      "review": 0,
+      "errors": 0
+    }
+  },
+  "total": 1,
+  "ok": 1,
+  "review": 0,
+  "review_by_reason": {},
+  "errors": 0,
+  "error_by_reason": {},
+  "results": [
+    {
+      "sku": "LAB-406",
+      "code": "406",
+      "name": "Bianco Primavera Labgrade",
+      "family_code": "LABGRADE",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+      "status": "DRY_RUN_OK",
+      "reason": null,
+      "default_finish": "Sei",
+      "finishes": [
+        "Sei",
+        "Zodia"
+      ],
+      "formats": {
+        "Sei": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ],
+        "Zodia": [
+          "305 × 130 cm",
+          "366 × 161 cm",
+          "420 × 161 cm",
+          "420 × 186 cm"
+        ]
+      },
+      "thicknesses": [
+        8,
+        10,
+        12,
+        13,
+        16,
+        18,
+        20
+      ],
+      "diagnostics": {
+        "body_length": 25348,
+        "section_length": 6292,
+        "family_block_found": true,
+        "raw_finish_hits": [
+          "Sei",
+          "Zodia"
+        ],
+        "external_finish_hits": [
+          "morbida"
+        ],
+        "rejected_no_active_formats": [],
+        "family_block_preview": "labgrade\ninterior\n8\n0.9, 8, 13, 16, 18, 20\n305x130\n420x161,\n420x186,\n305x130,\n366x161\nbrown\nbrown\nbk\nsei\nmorbida, zodia\nlabgrade\nlaminato hpl resistente ai prodotti chimici",
+        "parser_version": "LABGRADE_V1_MASTER_INTERSECTION"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/bianco-primavera-406/",
+        "https://abetlaminati.com/decori/labgrade-sei-bianco-primavera-406/",
+        "https://abetlaminati.com/decori/labgrade-zodia-bianco-primavera-406/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": null,
+          "family_block_found": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "generated_at": "2026-11-20T15:33:20.143Z",
+  "version": "MEG_V1",
+  "source_version": "MEG-07-2026",
+  "mode": "DRY_RUN",
+  "base_url": "https://abetlaminati.com",
+  "total_catalog_db": 106,
+  "catalog_missing_expected": [
+    {
+      "sku": "MEG-405",
+      "code": "405",
+      "name": "Bianco Porcellana",
+      "source": "MEG 07/2026"
+    }
+  ],
+  "active_thicknesses_mm": [
+    2,
+    3,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18
+  ],
+  "master_finishes": [
+    "Sei",
+    "Sei Due",
+    "Climb"
+  ],
+  "total": 1,
+  "ok": 0,
+  "review": 1,
+  "review_by_reason": {
+    "MEG_FINISHES_NOT_RECOGNIZED": 1
+  },
+  "errors": 0,
+  "error_by_reason": {},
+  "results": [
+    {
+      "sku": "MEG-406",
+      "code": "406",
+      "name": "Bianco Primavera",
+      "is_published": true,
+      "allow_sale": false,
+      "url": "https://abetlaminati.com/decori/meg-climb-bianco-primavera-406/",
+      "status": "REVIEW",
+      "reason": "MEG_FINISHES_NOT_RECOGNIZED",
+      "default_finish": null,
+      "finishes": [],
+      "formats": {},
+      "thicknesses": [
+        2,
+        3,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18
+      ],
+      "diagnostics": {
+        "body_length": 25199,
+        "section_length": 6143,
+        "meg_block_found": true,
+        "raw_finish_hits": [],
+        "rejected_no_active_formats": [],
+        "meg_block_preview": "meg"
+      },
+      "candidate_urls": [
+        "https://abetlaminati.com/decori/meg-sei-bianco-primavera-406/",
+        "https://abetlaminati.com/decori/bianco-primavera-406/",
+        "https://abetlaminati.com/decori/meg-sei-due-bianco-primavera-406/",
+        "https://abetlaminati.com/decori/meg-climb-bianco-primavera-406/"
+      ],
+      "url_attempts": [
+        {
+          "url": "https://abetlaminati.com/decori/meg-sei-bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": "MEG_FINISHES_NOT_RECOGNIZED",
+          "meg_block_found": true
+        },
+        {
+          "url": "https://abetlaminati.com/decori/bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": "MEG_FINISHES_NOT_RECOGNIZED",
+          "meg_block_found": true
+        },
+        {
+          "url": "https://abetlaminati.com/decori/meg-sei-due-bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": "MEG_FINISHES_NOT_RECOGNIZED",
+          "meg_block_found": true
+        },
+        {
+          "url": "https://abetlaminati.com/decori/meg-climb-bianco-primavera-406/",
+          "attempts": [
+            {
+              "attempt": 1,
+              "http_status": 200,
+              "marker_found_during_wait": true
+            }
+          ],
+          "parse_reason": "MEG_FINISHES_NOT_RECOGNIZED",
+          "meg_block_found": true
+        }
+      ]
+    }
+  ]
+}
