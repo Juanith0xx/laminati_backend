@@ -297,6 +297,7 @@ export const emailQuotationController = async (
     const result = await emailQuotation({
       quotationId: req.params.quotationId,
       body: req.body || {},
+      senderUserId: req.user.id,
     });
 
     const sentCount =

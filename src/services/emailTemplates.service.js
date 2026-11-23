@@ -174,6 +174,7 @@ export const buildQuotationEmail = ({
   to,
   quotationUrl,
   openPixelUrl,
+  sender = null,
 }) => {
   const recipient =
     cleanText(to) ||
@@ -253,6 +254,13 @@ export const buildQuotationEmail = ({
       safeOpenPixelUrl
     );
 
+  const senderName =
+    cleanText(sender?.name) ||
+    "Laminati";
+
+  const senderEmail =
+    cleanText(sender?.email).toLowerCase();
+
   const subject =
     `Cotización ${quoteNumber} · Laminati`;
 
@@ -274,7 +282,8 @@ export const buildQuotationEmail = ({
     "",
     "Desde este enlace podrás revisar la cotización y acceder al documento.",
     "",
-    "Laminati",
+    senderName,
+    senderEmail || "Laminati",
   ]
     .filter(
       Boolean
@@ -376,6 +385,12 @@ export const buildQuotationEmail = ({
                 <p style="margin:0;font-size:14px;line-height:1.7;color:#555555;">
                   Desde el enlace seguro podrás revisar la cotización y acceder al documento. Por seguridad y para mantener la trazabilidad, el PDF ya no se adjunta directamente al correo.
                 </p>
+
+                <div style="margin:22px 0 0 0;padding-top:18px;border-top:1px solid #eeeeee;font-size:13px;line-height:1.65;color:#555555;">
+                  <strong style="color:#222222;">${escapeHtml(senderName)}</strong>
+                  ${senderEmail ? `<br><a href="mailto:${escapeHtml(senderEmail)}" style="color:#555555;text-decoration:none;">${escapeHtml(senderEmail)}</a>` : ""}
+                  <br>Laminati Chile
+                </div>
 
                 <p style="margin:18px 0 0 0;font-size:11px;line-height:1.6;color:#999999;word-break:break-all;">
                   Si el botón no funciona, copia este enlace en tu navegador:<br>
