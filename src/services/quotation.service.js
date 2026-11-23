@@ -11,6 +11,9 @@ import {
 } from "./pos.service.js";
 import { buildQuotationPdfBuffer } from "./quotationPdf.service.js";
 import {
+  getProductImageSignedUrl,
+} from "./productImageStorage.service.js";
+import {
   createQuotationTracking,
   markQuotationEmailFailed,
   markQuotationEmailSent,
@@ -81,6 +84,80 @@ const cleanText = (value) => String(value ?? "").trim();
 const optionalText = (value) => {
   const normalized = cleanText(value);
   return normalized || null;
+};
+
+/* =========================================
+   IMAGEN PRINCIPAL PARA PDF DE COTIZACIÓN
+   - Railway Storage privado -> URL firmada.
+   - URL externa antigua -> compatibilidad.
+   - Una falla de imagen NO bloquea la cotización ni el PDF.
+========================================= */
+const resolveQuotationProductImage = async (row) => {
+  const {
+    primary_image_id,
+    primary_image_image_url,
+    primary_image_alt_text,
+    primary_image_storage_provider,
+    primary_image_thumbnail_key,
+    primary_image_card_key,
+    ...safeRow
+  } = row;
+
+  if (!primary_image_id) {
+    return {
+      ...safeRow,
+      product_image_url: null,
+      product_image_alt:
+        optionalText(primary_image_alt_text) ||
+        optionalText(safeRow.product_name) ||
+        optionalText(safeRow.description) ||
+        null,
+    };
+  }
+
+  const storageProvider = cleanText(
+    primary_image_storage_provider
+  ).toUpperCase();
+
+  const legacyUrl = optionalText(
+    primary_image_image_url
+  );
+
+  let resolvedUrl = null;
+
+  if (storageProvider !== "RAILWAY") {
+    resolvedUrl = legacyUrl;
+  } else {
+    try {
+      const storageKey =
+        optionalText(primary_image_card_key) ||
+        optionalText(primary_image_thumbnail_key);
+
+      resolvedUrl = storageKey
+        ? await getProductImageSignedUrl(storageKey)
+        : null;
+    } catch (error) {
+      console.error(
+        "Error generando URL firmada para imagen de cotización:",
+        {
+          product_id: safeRow.product_id || null,
+          image_id: primary_image_id,
+          message: error?.message || null,
+        }
+      );
+      resolvedUrl = null;
+    }
+  }
+
+  return {
+    ...safeRow,
+    product_image_url: resolvedUrl,
+    product_image_alt:
+      optionalText(primary_image_alt_text) ||
+      optionalText(safeRow.product_name) ||
+      optionalText(safeRow.description) ||
+      null,
+  };
 };
 
 const isUuid = (value) =>
@@ -717,27 +794,59 @@ const getQuotationItems = async (quotationId, client = pool) => {
   const result = await client.query(
     `
       SELECT
-        id,
-        quotation_id,
-        product_id,
-        sku,
-        product_name,
-        quantity,
-        unit_price_gross,
-        unit_price_net,
-        tax_rate,
-        line_net,
-        line_tax,
-        line_total,
-        created_at
-      FROM quotation_items
-      WHERE quotation_id = $1
-      ORDER BY created_at ASC, id ASC
+        qi.id,
+        qi.quotation_id,
+        qi.product_id,
+        qi.sku,
+        qi.product_name,
+        qi.quantity,
+        qi.unit_price_gross,
+        qi.unit_price_net,
+        qi.tax_rate,
+        qi.line_net,
+        qi.line_tax,
+        qi.line_total,
+        qi.created_at,
+
+        img.id AS primary_image_id,
+        img.image_url AS primary_image_image_url,
+        img.alt_text AS primary_image_alt_text,
+        img.storage_provider AS primary_image_storage_provider,
+        img.thumbnail_key AS primary_image_thumbnail_key,
+        img.card_key AS primary_image_card_key
+
+      FROM quotation_items qi
+
+      LEFT JOIN products p
+        ON p.id = qi.product_id
+
+      LEFT JOIN LATERAL (
+        SELECT
+          pi.id,
+          pi.image_url,
+          pi.alt_text,
+          pi.storage_provider,
+          pi.thumbnail_key,
+          pi.card_key
+        FROM product_images pi
+        WHERE pi.product_id = p.id
+        ORDER BY
+          pi.is_primary DESC,
+          pi.sort_order ASC,
+          pi.created_at ASC
+        LIMIT 1
+      ) img
+        ON TRUE
+
+      WHERE qi.quotation_id = $1
+      ORDER BY qi.created_at ASC, qi.id ASC
     `,
     [quotationId]
   );
 
-  return result.rows;
+  return Promise.all(
+    result.rows.map(resolveQuotationProductImage)
+  );
 };
 
 
@@ -750,46 +859,78 @@ const getQuotationProjectLines =
       await client.query(
         `
           SELECT
-            id,
-            quotation_id,
-            line_type,
-            product_id,
-            description,
-            code,
-            brand,
-            collection,
-            italy_price_usd,
-            italy_price_source,
-            finish,
-            thickness_mm,
-            quantity,
-            unit,
-            format_label,
-            width_cm,
-            height_cm,
-            price_m2_gross,
-            unit_price_gross,
-            line_total_gross,
-            tax_rate,
-            line_net,
-            line_tax,
-            pricing_mode,
-            sort_order,
-            created_at,
-            updated_at
-          FROM quotation_project_lines
-          WHERE quotation_id = $1
+            qpl.id,
+            qpl.quotation_id,
+            qpl.line_type,
+            qpl.product_id,
+            qpl.description,
+            qpl.code,
+            qpl.brand,
+            qpl.collection,
+            qpl.italy_price_usd,
+            qpl.italy_price_source,
+            qpl.finish,
+            qpl.thickness_mm,
+            qpl.quantity,
+            qpl.unit,
+            qpl.format_label,
+            qpl.width_cm,
+            qpl.height_cm,
+            qpl.price_m2_gross,
+            qpl.unit_price_gross,
+            qpl.line_total_gross,
+            qpl.tax_rate,
+            qpl.line_net,
+            qpl.line_tax,
+            qpl.pricing_mode,
+            qpl.sort_order,
+            qpl.created_at,
+            qpl.updated_at,
+
+            img.id AS primary_image_id,
+            img.image_url AS primary_image_image_url,
+            img.alt_text AS primary_image_alt_text,
+            img.storage_provider AS primary_image_storage_provider,
+            img.thumbnail_key AS primary_image_thumbnail_key,
+            img.card_key AS primary_image_card_key
+
+          FROM quotation_project_lines qpl
+
+          LEFT JOIN products p
+            ON p.id = qpl.product_id
+
+          LEFT JOIN LATERAL (
+            SELECT
+              pi.id,
+              pi.image_url,
+              pi.alt_text,
+              pi.storage_provider,
+              pi.thumbnail_key,
+              pi.card_key
+            FROM product_images pi
+            WHERE pi.product_id = p.id
+            ORDER BY
+              pi.is_primary DESC,
+              pi.sort_order ASC,
+              pi.created_at ASC
+            LIMIT 1
+          ) img
+            ON TRUE
+
+          WHERE qpl.quotation_id = $1
           ORDER BY
-            sort_order ASC,
-            created_at ASC,
-            id ASC
+            qpl.sort_order ASC,
+            qpl.created_at ASC,
+            qpl.id ASC
         `,
         [
           quotationId,
         ]
       );
 
-    return result.rows;
+    return Promise.all(
+      result.rows.map(resolveQuotationProductImage)
+    );
   };
 
 

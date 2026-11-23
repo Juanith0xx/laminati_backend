@@ -13,6 +13,88 @@ const money = (value) => {
 
 const cleanText = (value) => String(value ?? "").trim();
 
+const PDF_IMAGE_TIMEOUT_MS = 8000;
+const PDF_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+/*
+ * Las imágenes son opcionales.
+ * Una URL vencida, un 403 o un formato no soportado nunca debe impedir
+ * la generación de la cotización.
+ */
+const fetchPdfImageBuffer = async (url) => {
+  const normalizedUrl = cleanText(url);
+  if (!normalizedUrl) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    PDF_IMAGE_TIMEOUT_MS
+  );
+
+  try {
+    const response = await fetch(normalizedUrl, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    const contentLength = Number(
+      response.headers.get("content-length") || 0
+    );
+
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength > PDF_IMAGE_MAX_BYTES
+    ) {
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+
+    if (arrayBuffer.byteLength > PDF_IMAGE_MAX_BYTES) {
+      return null;
+    }
+
+    return Buffer.from(arrayBuffer);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const attachPdfImageBuffers = async (rows = []) =>
+  Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      _pdf_image_buffer: await fetchPdfImageBuffer(
+        row?.product_image_url
+      ),
+    }))
+  );
+
+const drawOptionalProductImage = ({
+  doc,
+  buffer,
+  x,
+  y,
+  width = 30,
+  height = 30,
+}) => {
+  if (!buffer) return false;
+
+  try {
+    doc.image(buffer, x, y, {
+      fit: [width, height],
+      align: "center",
+      valign: "center",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 
 const LAMINATI_WORLD_LOGO_PATH =
   fileURLToPath(
@@ -124,6 +206,8 @@ const buildStandardQuotationPdfBuffer = async ({
   quotation,
   items,
 }) => {
+  const preparedItems = await attachPdfImageBuffers(items);
+
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -272,8 +356,9 @@ const buildStandardQuotationPdfBuffer = async ({
       y += 20;
 
       const cols = {
-        sku: 42,
-        product: 100,
+        image: 42,
+        sku: 88,
+        product: 145,
         qty: 340,
         price: 390,
         total: 480,
@@ -283,6 +368,7 @@ const buildStandardQuotationPdfBuffer = async ({
         .font("Helvetica-Bold")
         .fontSize(8)
         .fillColor("#666666")
+        .text("IMG", cols.image, y, { width: 38 })
         .text("SKU", cols.sku, y)
         .text("Producto", cols.product, y)
         .text("Cant.", cols.qty, y, { width: 40, align: "right" })
@@ -297,18 +383,27 @@ const buildStandardQuotationPdfBuffer = async ({
         .stroke();
       y += 8;
 
-      for (const item of items) {
+      for (const item of preparedItems) {
         if (y > 690) {
           doc.addPage();
           y = 50;
         }
+
+        drawOptionalProductImage({
+          doc,
+          buffer: item._pdf_image_buffer,
+          x: cols.image,
+          y: y - 2,
+          width: 36,
+          height: 36,
+        });
 
         doc
           .font("Helvetica")
           .fontSize(8.5)
           .fillColor("#222222")
           .text(item.sku, cols.sku, y, { width: 50 })
-          .text(item.product_name, cols.product, y, { width: 225 })
+          .text(item.product_name, cols.product, y, { width: 180 })
           .text(String(item.quantity), cols.qty, y, {
             width: 40,
             align: "right",
@@ -322,7 +417,7 @@ const buildStandardQuotationPdfBuffer = async ({
             align: "right",
           });
 
-        y += 32;
+        y += 42;
       }
 
       y += 10;
@@ -1063,114 +1158,16 @@ const drawProjectProductHeader = ({
 }) => {
   const columns =
     [
-      {
-        key:
-          "product",
-        label:
-          "PRODUCTO",
-        x:
-          34,
-        width:
-          92,
-        align:
-          "left",
-      },
-      {
-        key:
-          "code",
-        label:
-          "CÓDIGO",
-        x:
-          126,
-        width:
-          78,
-        align:
-          "left",
-      },
-      {
-        key:
-          "finish",
-        label:
-          "ACABADO",
-        x:
-          204,
-        width:
-          55,
-        align:
-          "left",
-      },
-      {
-        key:
-          "thickness",
-        label:
-          "ESPESOR",
-        x:
-          259,
-        width:
-          43,
-        align:
-          "right",
-      },
-      {
-        key:
-          "quantity",
-        label:
-          "CANT.",
-        x:
-          302,
-        width:
-          39,
-        align:
-          "right",
-      },
-      {
-        key:
-          "format",
-        label:
-          "FORMATO",
-        x:
-          341,
-        width:
-          62,
-        align:
-          "left",
-      },
-      {
-        key:
-          "m2",
-        label:
-          "VALOR m²",
-        x:
-          403,
-        width:
-          48,
-        align:
-          "right",
-      },
-      {
-        key:
-          "unit",
-        label:
-          "VALOR UNIT.",
-        x:
-          451,
-        width:
-          52,
-        align:
-          "right",
-      },
-      {
-        key:
-          "total",
-        label:
-          "TOTAL",
-        x:
-          503,
-        width:
-          58,
-        align:
-          "right",
-      },
+      { key: "image", label: "IMG", x: 34, width: 38, align: "left" },
+      { key: "product", label: "PRODUCTO", x: 72, width: 82, align: "left" },
+      { key: "code", label: "CÓDIGO", x: 154, width: 62, align: "left" },
+      { key: "finish", label: "ACABADO", x: 216, width: 50, align: "left" },
+      { key: "thickness", label: "ESPESOR", x: 266, width: 42, align: "right" },
+      { key: "quantity", label: "CANT.", x: 308, width: 34, align: "right" },
+      { key: "format", label: "FORMATO", x: 342, width: 58, align: "left" },
+      { key: "m2", label: "VALOR m²", x: 400, width: 48, align: "right" },
+      { key: "unit", label: "VALOR UNIT.", x: 448, width: 53, align: "right" },
+      { key: "total", label: "TOTAL", x: 501, width: 60, align: "right" },
     ];
 
   const headerHeight =
@@ -1234,6 +1231,8 @@ const drawProjectProductRow = ({
   y,
 }) => {
   const values = {
+    image: "",
+
     product:
       cleanText(
         line
@@ -1313,12 +1312,16 @@ const drawProjectProductRow = ({
   };
 
   let rowHeight =
-    27;
+    42;
 
   for (
     const column
     of columns
   ) {
+    if (column.key === "image") {
+      continue;
+    }
+
     const height =
       doc
         .font(
@@ -1370,10 +1373,29 @@ const drawProjectProductRow = ({
     )
     .stroke();
 
+  const imageColumn = columns.find(
+    (column) => column.key === "image"
+  );
+
+  if (imageColumn) {
+    drawOptionalProductImage({
+      doc,
+      buffer: line._pdf_image_buffer,
+      x: imageColumn.x + 3,
+      y: y + 5,
+      width: 30,
+      height: 30,
+    });
+  }
+
   for (
     const column
     of columns
   ) {
+    if (column.key === "image") {
+      continue;
+    }
+
     doc
       .font(
         column.key ===
@@ -3847,6 +3869,9 @@ const buildProjectQuotationPdfBuffer =
     project_lines = [],
     bathroom_optimization = null,
   }) => {
+    const preparedProjectLines =
+      await attachPdfImageBuffers(project_lines);
+
     return new Promise(
       (
         resolve,
@@ -3900,7 +3925,7 @@ const buildProjectQuotationPdfBuffer =
           );
 
           const productLines =
-            project_lines.filter(
+            preparedProjectLines.filter(
               (
                 line
               ) =>
@@ -3910,7 +3935,7 @@ const buildProjectQuotationPdfBuffer =
             );
 
           const extraLines =
-            project_lines.filter(
+            preparedProjectLines.filter(
               (
                 line
               ) =>
