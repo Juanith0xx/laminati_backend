@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import sharp from "sharp";
 import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 
@@ -15,12 +16,46 @@ const cleanText = (value) => String(value ?? "").trim();
 
 const PDF_IMAGE_TIMEOUT_MS = 8000;
 const PDF_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const PDF_IMAGE_NORMALIZED_WIDTH = 240;
+const PDF_IMAGE_JPEG_QUALITY = 86;
 
 /*
- * Las imágenes son opcionales.
- * Una URL vencida, un 403 o un formato no soportado nunca debe impedir
- * la generación de la cotización.
+ * Railway Storage guarda las variantes de producto en WebP.
+ * PDFKit no incrusta WebP de forma fiable, por lo que normalizamos
+ * cualquier imagen descargada a JPEG antes de entregársela a doc.image().
+ *
+ * Una imagen inválida, URL vencida, 403 o error de conversión nunca debe
+ * impedir que la cotización se genere.
  */
+const normalizePdfImageBuffer = async (buffer) => {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return null;
+  }
+
+  try {
+    return await sharp(buffer)
+      .rotate()
+      .flatten({ background: "#ffffff" })
+      .resize({
+        width: PDF_IMAGE_NORMALIZED_WIDTH,
+        height: PDF_IMAGE_NORMALIZED_WIDTH,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({
+        quality: PDF_IMAGE_JPEG_QUALITY,
+        mozjpeg: true,
+      })
+      .toBuffer();
+  } catch (error) {
+    console.warn(
+      "No fue posible normalizar una imagen para el PDF de cotización:",
+      error?.message || error
+    );
+    return null;
+  }
+};
+
 const fetchPdfImageBuffer = async (url) => {
   const normalizedUrl = cleanText(url);
   if (!normalizedUrl) return null;
@@ -36,7 +71,12 @@ const fetchPdfImageBuffer = async (url) => {
       signal: controller.signal,
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(
+        `No fue posible descargar una imagen para la cotización (HTTP ${response.status})`
+      );
+      return null;
+    }
 
     const contentLength = Number(
       response.headers.get("content-length") || 0
@@ -55,8 +95,16 @@ const fetchPdfImageBuffer = async (url) => {
       return null;
     }
 
-    return Buffer.from(arrayBuffer);
-  } catch {
+    return normalizePdfImageBuffer(
+      Buffer.from(arrayBuffer)
+    );
+  } catch (error) {
+    console.warn(
+      "No fue posible descargar una imagen para el PDF de cotización:",
+      error?.name === "AbortError"
+        ? "timeout"
+        : error?.message || error
+    );
     return null;
   } finally {
     clearTimeout(timeout);
@@ -65,12 +113,21 @@ const fetchPdfImageBuffer = async (url) => {
 
 const attachPdfImageBuffers = async (rows = []) =>
   Promise.all(
-    rows.map(async (row) => ({
-      ...row,
-      _pdf_image_buffer: await fetchPdfImageBuffer(
-        row?.product_image_url
-      ),
-    }))
+    rows.map(async (row) => {
+      const directBuffer =
+        Buffer.isBuffer(row?.product_image_buffer)
+          ? row.product_image_buffer
+          : null;
+
+      return {
+        ...row,
+        _pdf_image_buffer: directBuffer
+          ? await normalizePdfImageBuffer(directBuffer)
+          : await fetchPdfImageBuffer(
+              row?.product_image_url
+            ),
+      };
+    })
   );
 
 const drawOptionalProductImage = ({

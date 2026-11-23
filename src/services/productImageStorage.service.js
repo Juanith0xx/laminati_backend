@@ -431,6 +431,89 @@ export const getProductImageSignedUrl =
   };
 
 
+/* =========================================
+   DESCARGAR OBJECT COMO BUFFER
+   - Uso interno backend/PDF.
+   - Evita URL firmada + fetch HTTP.
+========================================= */
+const streamBodyToBuffer = async (body) => {
+  if (!body) return null;
+
+  if (Buffer.isBuffer(body)) {
+    return body;
+  }
+
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body);
+  }
+
+  if (typeof body.transformToByteArray === "function") {
+    const bytes = await body.transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
+  const chunks = [];
+
+  for await (const chunk of body) {
+    chunks.push(
+      Buffer.isBuffer(chunk)
+        ? chunk
+        : Buffer.from(chunk)
+    );
+  }
+
+  return Buffer.concat(chunks);
+};
+
+export const getProductImageBuffer =
+  async (
+    key,
+    {
+      maxBytes = 5 * 1024 * 1024,
+    } = {}
+  ) => {
+    if (!key) {
+      return null;
+    }
+
+    const response = await storageClient.send(
+      new GetObjectCommand({
+        Bucket: STORAGE_BUCKET,
+        Key: key,
+      })
+    );
+
+    const contentLength = Number(
+      response.ContentLength || 0
+    );
+
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength > maxBytes
+    ) {
+      throw new Error(
+        `Imagen supera el máximo permitido para lectura: ${contentLength} bytes`
+      );
+    }
+
+    const buffer = await streamBodyToBuffer(
+      response.Body
+    );
+
+    if (!buffer || buffer.length === 0) {
+      return null;
+    }
+
+    if (buffer.length > maxBytes) {
+      throw new Error(
+        `Imagen supera el máximo permitido para lectura: ${buffer.length} bytes`
+      );
+    }
+
+    return buffer;
+  };
+
+
 
 /* =========================================
    AVATAR DE USUARIO

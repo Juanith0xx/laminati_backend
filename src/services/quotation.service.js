@@ -11,7 +11,7 @@ import {
 } from "./pos.service.js";
 import { buildQuotationPdfBuffer } from "./quotationPdf.service.js";
 import {
-  getProductImageSignedUrl,
+  getProductImageBuffer,
 } from "./productImageStorage.service.js";
 import {
   createQuotationTracking,
@@ -88,7 +88,7 @@ const optionalText = (value) => {
 
 /* =========================================
    IMAGEN PRINCIPAL PARA PDF DE COTIZACIÓN
-   - Railway Storage privado -> URL firmada.
+   - Railway Storage privado -> Buffer directo.
    - URL externa antigua -> compatibilidad.
    - Una falla de imagen NO bloquea la cotización ni el PDF.
 ========================================= */
@@ -103,15 +103,18 @@ const resolveQuotationProductImage = async (row) => {
     ...safeRow
   } = row;
 
+  const alt =
+    optionalText(primary_image_alt_text) ||
+    optionalText(safeRow.product_name) ||
+    optionalText(safeRow.description) ||
+    null;
+
   if (!primary_image_id) {
     return {
       ...safeRow,
       product_image_url: null,
-      product_image_alt:
-        optionalText(primary_image_alt_text) ||
-        optionalText(safeRow.product_name) ||
-        optionalText(safeRow.description) ||
-        null,
+      product_image_buffer: null,
+      product_image_alt: alt,
     };
   }
 
@@ -119,45 +122,53 @@ const resolveQuotationProductImage = async (row) => {
     primary_image_storage_provider
   ).toUpperCase();
 
-  const legacyUrl = optionalText(
-    primary_image_image_url
-  );
-
-  let resolvedUrl = null;
-
   if (storageProvider !== "RAILWAY") {
-    resolvedUrl = legacyUrl;
-  } else {
-    try {
-      const storageKey =
-        optionalText(primary_image_card_key) ||
-        optionalText(primary_image_thumbnail_key);
-
-      resolvedUrl = storageKey
-        ? await getProductImageSignedUrl(storageKey)
-        : null;
-    } catch (error) {
-      console.error(
-        "Error generando URL firmada para imagen de cotización:",
-        {
-          product_id: safeRow.product_id || null,
-          image_id: primary_image_id,
-          message: error?.message || null,
-        }
-      );
-      resolvedUrl = null;
-    }
+    return {
+      ...safeRow,
+      product_image_url: optionalText(
+        primary_image_image_url
+      ),
+      product_image_buffer: null,
+      product_image_alt: alt,
+    };
   }
 
-  return {
-    ...safeRow,
-    product_image_url: resolvedUrl,
-    product_image_alt:
-      optionalText(primary_image_alt_text) ||
-      optionalText(safeRow.product_name) ||
-      optionalText(safeRow.description) ||
-      null,
-  };
+  try {
+    const storageKey =
+      optionalText(primary_image_thumbnail_key) ||
+      optionalText(primary_image_card_key);
+
+    const buffer = storageKey
+      ? await getProductImageBuffer(storageKey)
+      : null;
+
+    return {
+      ...safeRow,
+      product_image_url: null,
+      product_image_buffer: buffer,
+      product_image_alt: alt,
+    };
+  } catch (error) {
+    console.error(
+      "Error leyendo imagen Railway para PDF de cotización:",
+      {
+        product_id: safeRow.product_id || null,
+        image_id: primary_image_id,
+        key:
+          primary_image_thumbnail_key ||
+          primary_image_card_key ||
+          null,
+        message: error?.message || null,
+      }
+    );
+
+    return {
+      ...safeRow,
+      product_image_url: null,
+      product_image_buffer: null,
+      product_image_alt: alt,
+    };
+  }
 };
 
 const isUuid = (value) =>
