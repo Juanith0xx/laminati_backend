@@ -750,39 +750,64 @@ const getQuotationProjectLines =
       await client.query(
         `
           SELECT
-            id,
-            quotation_id,
-            line_type,
-            product_id,
-            description,
-            code,
-            brand,
-            collection,
-            italy_price_usd,
-            italy_price_source,
-            finish,
-            thickness_mm,
-            quantity,
-            unit,
-            format_label,
-            width_cm,
-            height_cm,
-            price_m2_gross,
-            unit_price_gross,
-            line_total_gross,
-            tax_rate,
-            line_net,
-            line_tax,
-            pricing_mode,
-            sort_order,
-            created_at,
-            updated_at
-          FROM quotation_project_lines
-          WHERE quotation_id = $1
+            qpl.id,
+            qpl.quotation_id,
+            qpl.line_type,
+            qpl.product_id,
+            qpl.description,
+            qpl.code,
+            qpl.brand,
+            qpl.collection,
+            qpl.italy_price_usd,
+            qpl.italy_price_source,
+            qpl.finish,
+            qpl.thickness_mm,
+            qpl.quantity,
+            qpl.unit,
+            qpl.format_label,
+            qpl.width_cm,
+            qpl.height_cm,
+            qpl.price_m2_gross,
+            qpl.unit_price_gross,
+            qpl.line_total_gross,
+            qpl.tax_rate,
+            qpl.line_net,
+            qpl.line_tax,
+            qpl.pricing_mode,
+            qpl.sort_order,
+            qpl.created_at,
+            qpl.updated_at,
+            p.project_family_id,
+            family.code AS project_family_code,
+            family.name AS project_family_name,
+            COALESCE(
+              (
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'id', d.id,
+                    'title', d.title,
+                    'document_type', d.document_type,
+                    'document_url', d.document_url,
+                    'sort_order', d.sort_order
+                  )
+                  ORDER BY d.sort_order, d.title
+                )
+                FROM project_family_documents d
+                WHERE d.family_id = family.id
+                  AND d.is_active = TRUE
+              ),
+              '[]'::jsonb
+            ) AS project_documents
+          FROM quotation_project_lines qpl
+          LEFT JOIN products p
+            ON p.id = qpl.product_id
+          LEFT JOIN project_product_families family
+            ON family.id = p.project_family_id
+          WHERE qpl.quotation_id = $1
           ORDER BY
-            sort_order ASC,
-            created_at ASC,
-            id ASC
+            qpl.sort_order ASC,
+            qpl.created_at ASC,
+            qpl.id ASC
         `,
         [
           quotationId,

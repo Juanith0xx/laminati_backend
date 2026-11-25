@@ -1,7 +1,10 @@
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import { existsSync } from "fs";
+import { readFile } from "fs/promises";
+import path from "path";
 import { fileURLToPath } from "url";
+import { PDFDocument as PDFLibDocument } from "pdf-lib";
 
 const money = (value) => {
   const number = Number(value || 0);
@@ -3920,6 +3923,284 @@ const drawBathroomOptimizationAnnex = ({
   }
 };
 
+const PROJECT_TECHNICAL_DOCUMENTS_ROOT =
+  fileURLToPath(
+    new URL(
+      "../../resources/",
+      import.meta.url
+    )
+  );
+
+const normalizeProjectTechnicalDocumentPath = (
+  documentUrl
+) => {
+  const relativePath =
+    cleanText(
+      documentUrl
+    )
+      .replace(
+        /\\/g,
+        "/"
+      )
+      .replace(
+        /^\/+/,
+        ""
+      );
+
+  if (
+    !relativePath
+  ) {
+    return null;
+  }
+
+  const rootPath =
+    path.resolve(
+      PROJECT_TECHNICAL_DOCUMENTS_ROOT
+    );
+
+  const resolvedPath =
+    path.resolve(
+      rootPath,
+      relativePath
+    );
+
+  if (
+    resolvedPath !==
+      rootPath &&
+    !resolvedPath.startsWith(
+      `${rootPath}${path.sep}`
+    )
+  ) {
+    console.warn(
+      `Ruta de ficha técnica rechazada por seguridad: ${relativePath}`
+    );
+    return null;
+  }
+
+  return resolvedPath;
+};
+
+const getProjectTechnicalDocuments = (
+  projectLines = []
+) => {
+  const uniqueDocuments =
+    new Map();
+
+  for (
+    const line
+    of Array.isArray(
+      projectLines
+    )
+      ? projectLines
+      : []
+  ) {
+    if (
+      cleanText(
+        line?.line_type
+      ).toUpperCase() !==
+      "PRODUCT"
+    ) {
+      continue;
+    }
+
+    const documents =
+      Array.isArray(
+        line?.project_documents
+      )
+        ? line.project_documents
+        : [];
+
+    for (
+      const document
+      of documents
+    ) {
+      if (
+        cleanText(
+          document?.document_type
+        ).toUpperCase() !==
+        "TECHNICAL_SHEET"
+      ) {
+        continue;
+      }
+
+      const documentUrl =
+        cleanText(
+          document?.document_url
+        );
+
+      if (
+        !documentUrl
+      ) {
+        continue;
+      }
+
+      const key =
+        cleanText(
+          document?.id
+        ) ||
+        documentUrl;
+
+      if (
+        uniqueDocuments.has(
+          key
+        )
+      ) {
+        continue;
+      }
+
+      uniqueDocuments.set(
+        key,
+        {
+          ...document,
+          family_code:
+            cleanText(
+              line
+                ?.project_family_code
+            ) ||
+            null,
+          family_name:
+            cleanText(
+              line
+                ?.project_family_name
+            ) ||
+            null,
+        }
+      );
+    }
+  }
+
+  return Array.from(
+    uniqueDocuments.values()
+  );
+};
+
+const appendProjectTechnicalSheets =
+  async ({
+    basePdfBuffer,
+    projectLines = [],
+  }) => {
+    const technicalDocuments =
+      getProjectTechnicalDocuments(
+        projectLines
+      );
+
+    if (
+      technicalDocuments.length ===
+      0
+    ) {
+      return basePdfBuffer;
+    }
+
+    const mergedPdf =
+      await PDFLibDocument.load(
+        basePdfBuffer
+      );
+
+    let appendedDocuments =
+      0;
+
+    for (
+      const document
+      of technicalDocuments
+    ) {
+      const documentPath =
+        normalizeProjectTechnicalDocumentPath(
+          document.document_url
+        );
+
+      if (
+        !documentPath ||
+        !existsSync(
+          documentPath
+        )
+      ) {
+        console.warn(
+          "Ficha técnica no encontrada para cotización de proyecto:",
+          {
+            family:
+              document.family_code ||
+              document.family_name ||
+              null,
+            title:
+              document.title ||
+              null,
+            document_url:
+              document.document_url ||
+              null,
+            resolved_path:
+              documentPath,
+          }
+        );
+        continue;
+      }
+
+      try {
+        const technicalPdfBytes =
+          await readFile(
+            documentPath
+          );
+
+        const technicalPdf =
+          await PDFLibDocument.load(
+            technicalPdfBytes
+          );
+
+        const copiedPages =
+          await mergedPdf.copyPages(
+            technicalPdf,
+            technicalPdf.getPageIndices()
+          );
+
+        for (
+          const page
+          of copiedPages
+        ) {
+          mergedPdf.addPage(
+            page
+          );
+        }
+
+        appendedDocuments +=
+          1;
+      } catch (
+        error
+      ) {
+        console.warn(
+          "No fue posible anexar una ficha técnica a la cotización de proyecto:",
+          {
+            family:
+              document.family_code ||
+              document.family_name ||
+              null,
+            title:
+              document.title ||
+              null,
+            document_url:
+              document.document_url ||
+              null,
+            message:
+              error?.message ||
+              String(
+                error
+              ),
+          }
+        );
+      }
+    }
+
+    if (
+      appendedDocuments ===
+      0
+    ) {
+      return basePdfBuffer;
+    }
+
+    return Buffer.from(
+      await mergedPdf.save()
+    );
+  };
+
+
 const buildProjectQuotationPdfBuffer =
   async ({
     quotation,
@@ -4621,10 +4902,18 @@ export const buildQuotationPdfBuffer =
       ).toUpperCase() ===
       "PROJECT"
     ) {
-      return buildProjectQuotationPdfBuffer({
-        quotation,
-        project_lines,
-        bathroom_optimization,
+      const projectPdfBuffer =
+        await buildProjectQuotationPdfBuffer({
+          quotation,
+          project_lines,
+          bathroom_optimization,
+        });
+
+      return appendProjectTechnicalSheets({
+        basePdfBuffer:
+          projectPdfBuffer,
+        projectLines:
+          project_lines,
       });
     }
 
