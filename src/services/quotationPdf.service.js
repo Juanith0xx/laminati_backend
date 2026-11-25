@@ -1350,6 +1350,38 @@ const drawProjectProductHeader = ({
 };
 
 
+const getProjectProductFamilyLabel = (line) => {
+  const familyCode =
+    cleanText(
+      line?.project_family_code
+    ).toUpperCase();
+
+  if (familyCode === "MEG") {
+    return "MEG";
+  }
+
+  if (familyCode === "STRATIFICATO") {
+    return "Stratificato";
+  }
+
+  if (familyCode === "LABGRADE") {
+    return "Labgrade";
+  }
+
+  if (familyCode === "LABGRADE_PLUS") {
+    return "Labgrade Plus";
+  }
+
+  /*
+   * Los HPL estándar actualmente no tienen
+   * project_family_id en la base de datos.
+   * En una línea PRODUCT sin familia de proyecto,
+   * la clasificación comercial corresponde a Laminado.
+   */
+  return "Laminado";
+};
+
+
 const drawProjectProductRow = ({
   doc,
   line,
@@ -1437,6 +1469,11 @@ const drawProjectProductRow = ({
       ),
   };
 
+  const productFamilyLabel =
+    getProjectProductFamilyLabel(
+      line
+    );
+
   let rowHeight =
     42;
 
@@ -1448,29 +1485,76 @@ const drawProjectProductRow = ({
       continue;
     }
 
-    const height =
-      doc
-        .font(
-          column.key ===
-            "total"
-            ? "Helvetica-Bold"
-            : "Helvetica"
-        )
-        .fontSize(
-          6.1
-        )
-        .heightOfString(
-          values[
-            column.key
-          ],
-          {
-            width:
-              column.width -
-              7,
-            lineGap:
-              1,
-          }
-        );
+    let height;
+
+    if (column.key === "product") {
+      const productNameHeight =
+        doc
+          .font(
+            "Helvetica"
+          )
+          .fontSize(
+            6.1
+          )
+          .heightOfString(
+            values.product,
+            {
+              width:
+                column.width -
+                7,
+              lineGap:
+                1,
+            }
+          );
+
+      const familyHeight =
+        doc
+          .font(
+            "Helvetica-Bold"
+          )
+          .fontSize(
+            5.1
+          )
+          .heightOfString(
+            productFamilyLabel,
+            {
+              width:
+                column.width -
+                7,
+              lineGap:
+                1,
+            }
+          );
+
+      height =
+        productNameHeight +
+        3 +
+        familyHeight;
+    } else {
+      height =
+        doc
+          .font(
+            column.key ===
+              "total"
+              ? "Helvetica-Bold"
+              : "Helvetica"
+          )
+          .fontSize(
+            6.1
+          )
+          .heightOfString(
+            values[
+              column.key
+            ],
+            {
+              width:
+                column.width -
+                7,
+              lineGap:
+                1,
+            }
+          );
+    }
 
     rowHeight =
       Math.max(
@@ -1519,6 +1603,87 @@ const drawProjectProductRow = ({
     of columns
   ) {
     if (column.key === "image") {
+      continue;
+    }
+
+    if (column.key === "product") {
+      const productX =
+        column.x + 3;
+
+      const productWidth =
+        column.width - 7;
+
+      const productY =
+        y + 7;
+
+      doc
+        .font(
+          "Helvetica"
+        )
+        .fontSize(
+          6.1
+        )
+        .fillColor(
+          "#222222"
+        )
+        .text(
+          values.product,
+          productX,
+          productY,
+          {
+            width:
+              productWidth,
+            align:
+              "left",
+            lineGap:
+              1,
+          }
+        );
+
+      const productNameHeight =
+        doc
+          .font(
+            "Helvetica"
+          )
+          .fontSize(
+            6.1
+          )
+          .heightOfString(
+            values.product,
+            {
+              width:
+                productWidth,
+              lineGap:
+                1,
+            }
+          );
+
+      doc
+        .font(
+          "Helvetica-Bold"
+        )
+        .fontSize(
+          5.1
+        )
+        .fillColor(
+          "#777777"
+        )
+        .text(
+          productFamilyLabel,
+          productX,
+          productY +
+            productNameHeight +
+            3,
+          {
+            width:
+              productWidth,
+            align:
+              "left",
+            lineGap:
+              1,
+          }
+        );
+
       continue;
     }
 
