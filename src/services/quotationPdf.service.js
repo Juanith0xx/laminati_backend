@@ -5,6 +5,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { PDFDocument as PDFLibDocument } from "pdf-lib";
+import { getProductImageSignedUrl } from "./productImageStorage.service.js";
 
 const money = (value) => {
   const number = Number(value || 0);
@@ -114,21 +115,86 @@ const fetchPdfImageBuffer = async (url) => {
   }
 };
 
+const resolvePdfProductImageUrl = async (row) => {
+  const directUrl = cleanText(
+    row?.product_image_url
+  );
+
+  const storageProvider = cleanText(
+    row?.product_image_storage_provider
+  ).toUpperCase();
+
+  if (
+    storageProvider !== "RAILWAY"
+  ) {
+    return directUrl || null;
+  }
+
+  const storageKey =
+    cleanText(
+      row?.product_image_thumbnail_key
+    ) ||
+    cleanText(
+      row?.product_image_card_key
+    ) ||
+    cleanText(
+      row?.product_image_detail_key
+    );
+
+  if (!storageKey) {
+    return directUrl || null;
+  }
+
+  try {
+    return await getProductImageSignedUrl(
+      storageKey
+    );
+  } catch (error) {
+    console.warn(
+      "No fue posible firmar la imagen Railway para la cotización:",
+      {
+        storage_key: storageKey,
+        message:
+          error?.message ||
+          String(error),
+      }
+    );
+
+    return directUrl || null;
+  }
+};
+
 const attachPdfImageBuffers = async (rows = []) =>
   Promise.all(
     rows.map(async (row) => {
       const directBuffer =
-        Buffer.isBuffer(row?.product_image_buffer)
+        Buffer.isBuffer(
+          row?.product_image_buffer
+        )
           ? row.product_image_buffer
           : null;
 
+      if (directBuffer) {
+        return {
+          ...row,
+          _pdf_image_buffer:
+            await normalizePdfImageBuffer(
+              directBuffer
+            ),
+        };
+      }
+
+      const resolvedImageUrl =
+        await resolvePdfProductImageUrl(
+          row
+        );
+
       return {
         ...row,
-        _pdf_image_buffer: directBuffer
-          ? await normalizePdfImageBuffer(directBuffer)
-          : await fetchPdfImageBuffer(
-              row?.product_image_url
-            ),
+        _pdf_image_buffer:
+          await fetchPdfImageBuffer(
+            resolvedImageUrl
+          ),
       };
     })
   );

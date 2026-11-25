@@ -780,6 +780,11 @@ const getQuotationProjectLines =
             p.project_family_id,
             family.code AS project_family_code,
             family.name AS project_family_name,
+            primary_image.image_url AS product_image_url,
+            primary_image.storage_provider AS product_image_storage_provider,
+            primary_image.thumbnail_key AS product_image_thumbnail_key,
+            primary_image.card_key AS product_image_card_key,
+            primary_image.detail_key AS product_image_detail_key,
             COALESCE(
               (
                 SELECT jsonb_agg(
@@ -803,6 +808,22 @@ const getQuotationProjectLines =
             ON p.id = qpl.product_id
           LEFT JOIN project_product_families family
             ON family.id = p.project_family_id
+          LEFT JOIN LATERAL (
+            SELECT
+              pi.image_url,
+              pi.storage_provider,
+              pi.thumbnail_key,
+              pi.card_key,
+              pi.detail_key
+            FROM product_images pi
+            WHERE pi.product_id = p.id
+            ORDER BY
+              pi.is_primary DESC,
+              pi.sort_order ASC,
+              pi.created_at ASC
+            LIMIT 1
+          ) primary_image
+            ON TRUE
           WHERE qpl.quotation_id = $1
           ORDER BY
             qpl.sort_order ASC,
