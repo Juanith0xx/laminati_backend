@@ -779,3 +779,178 @@ export const getAnalyticsDevices = async ({ days = 30 } = {}) => {
     items: result.rows,
   };
 };
+
+
+export const getAnalyticsVisitors = async ({ days = 30, limit = 50 } = {}) => {
+  const periodDays = normalizeDays(days);
+  const rowLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+
+  const result = await pool.query(
+    `
+      SELECT
+        s.id AS session_id,
+        CONCAT('#', UPPER(LEFT(REPLACE(s.session_key, '-', ''), 8))) AS visitor_label,
+        s.country_code,
+        s.region_code,
+        s.city,
+        s.commune,
+        s.device_type,
+        s.landing_page,
+        s.referrer,
+        s.first_seen_at,
+        s.last_seen_at,
+        COUNT(e.id)::int AS events,
+        COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')::int AS product_views,
+        COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK')::int AS product_clicks,
+        COUNT(*) FILTER (WHERE e.event_type = 'SEARCH')::int AS searches,
+        COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
+        COUNT(DISTINCT e.product_code) FILTER (
+          WHERE e.product_code IS NOT NULL
+            AND e.event_type IN ('PRODUCT_VIEW', 'PRODUCT_CLICK', 'WHATSAPP_CLICK')
+        )::int AS unique_products,
+        COALESCE(
+          ARRAY_AGG(DISTINCT e.product_code) FILTER (
+            WHERE e.event_type = 'PRODUCT_CLICK'
+              AND NULLIF(TRIM(e.product_code), '') IS NOT NULL
+          ),
+          ARRAY[]::varchar[]
+        ) AS clicked_products,
+        COALESCE(
+          ARRAY_AGG(DISTINCT e.search_term) FILTER (
+            WHERE e.event_type = 'SEARCH'
+              AND NULLIF(TRIM(e.search_term), '') IS NOT NULL
+          ),
+          ARRAY[]::text[]
+        ) AS search_terms,
+        (
+          COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')
+          + (COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK') * 3)
+          + (COUNT(*) FILTER (WHERE e.event_type = 'SEARCH') * 2)
+          + (COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK') * 8)
+        )::int AS engagement_score
+      FROM analytics_sessions s
+      LEFT JOIN analytics_events e
+        ON e.session_id = s.id
+       AND e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+      WHERE s.first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND s.is_suspected_bot = FALSE
+      GROUP BY
+        s.id,
+        s.session_key,
+        s.country_code,
+        s.region_code,
+        s.city,
+        s.commune,
+        s.device_type,
+        s.landing_page,
+        s.referrer,
+        s.first_seen_at,
+        s.last_seen_at
+      HAVING COUNT(*) FILTER (
+        WHERE e.event_type IN ('PRODUCT_VIEW', 'PRODUCT_CLICK', 'SEARCH', 'WHATSAPP_CLICK')
+      ) > 0
+      ORDER BY engagement_score DESC, product_clicks DESC, s.last_seen_at DESC
+      LIMIT $2
+    `,
+    [periodDays, rowLimit]
+  );
+
+  return {
+    days: periodDays,
+    items: result.rows,
+  };
+};
+
+export const getAnalyticsVisitorDetail = async ({ sessionId, days = 30 } = {}) => {
+  const periodDays = normalizeDays(days);
+  const normalizedSessionId = cleanUuid(sessionId);
+
+  if (!normalizedSessionId) {
+    const error = new Error('Sesión de Analytics inválida');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [sessionResult, eventsResult, productsResult] = await Promise.all([
+    pool.query(
+      `
+        SELECT
+          s.id AS session_id,
+          CONCAT('#', UPPER(LEFT(REPLACE(s.session_key, '-', ''), 8))) AS visitor_label,
+          s.country_code,
+          s.region_code,
+          s.city,
+          s.commune,
+          s.device_type,
+          s.landing_page,
+          s.referrer,
+          s.utm_source,
+          s.utm_medium,
+          s.utm_campaign,
+          s.first_seen_at,
+          s.last_seen_at
+        FROM analytics_sessions s
+        WHERE s.id = $1
+          AND s.is_suspected_bot = FALSE
+          AND s.first_seen_at >= NOW() - ($2::int * INTERVAL '1 day')
+        LIMIT 1
+      `,
+      [normalizedSessionId, periodDays]
+    ),
+    pool.query(
+      `
+        SELECT
+          e.id,
+          e.event_type,
+          e.page_path,
+          e.product_id,
+          e.product_code,
+          e.collection_slug,
+          e.search_term,
+          e.metadata,
+          e.created_at
+        FROM analytics_events e
+        JOIN analytics_sessions s ON s.id = e.session_id
+        WHERE e.session_id = $1
+          AND e.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
+        ORDER BY e.created_at ASC
+        LIMIT 250
+      `,
+      [normalizedSessionId, periodDays]
+    ),
+    pool.query(
+      `
+        SELECT
+          e.product_code,
+          COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')::int AS views,
+          COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK')::int AS clicks,
+          COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
+          MAX(e.created_at) AS last_interaction_at
+        FROM analytics_events e
+        JOIN analytics_sessions s ON s.id = e.session_id
+        WHERE e.session_id = $1
+          AND e.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
+          AND NULLIF(TRIM(e.product_code), '') IS NOT NULL
+          AND e.event_type IN ('PRODUCT_VIEW', 'PRODUCT_CLICK', 'WHATSAPP_CLICK')
+        GROUP BY e.product_code
+        ORDER BY clicks DESC, views DESC, whatsapp_clicks DESC, last_interaction_at DESC
+      `,
+      [normalizedSessionId, periodDays]
+    ),
+  ]);
+
+  if (!sessionResult.rows[0]) {
+    const error = new Error('Sesión de Analytics no encontrada');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    days: periodDays,
+    session: sessionResult.rows[0],
+    products: productsResult.rows,
+    events: eventsResult.rows,
+  };
+};

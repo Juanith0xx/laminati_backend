@@ -16,6 +16,8 @@ import {
   getAnalyticsSearchesController,
   getAnalyticsSourcesController,
   getAnalyticsDevicesController,
+  getAnalyticsVisitorsController,
+  getAnalyticsVisitorDetailController,
 } from "../controllers/analytics.controller.js";
 
 const router = Router();
@@ -58,6 +60,16 @@ router.get(
 router.get(
   "/devices",
   getAnalyticsDevicesController
+);
+
+router.get(
+  "/visitors",
+  getAnalyticsVisitorsController
+);
+
+router.get(
+  "/visitors/:sessionId",
+  getAnalyticsVisitorDetailController
 );
 
 export default router;

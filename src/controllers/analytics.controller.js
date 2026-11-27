@@ -7,6 +7,8 @@ import {
   getAnalyticsSearches,
   getAnalyticsSources,
   getAnalyticsDevices,
+  getAnalyticsVisitors,
+  getAnalyticsVisitorDetail,
 } from "../services/analytics.service.js";
 
 export const createAnalyticsEventController = async (req, res, next) => {
@@ -129,6 +131,39 @@ export const getAnalyticsSourcesController = async (req, res, next) => {
 export const getAnalyticsDevicesController = async (req, res, next) => {
   try {
     const data = await getAnalyticsDevices({
+      days: req.query.days,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+
+export const getAnalyticsVisitorsController = async (req, res, next) => {
+  try {
+    const data = await getAnalyticsVisitors({
+      days: req.query.days,
+      limit: req.query.limit,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getAnalyticsVisitorDetailController = async (req, res, next) => {
+  try {
+    const data = await getAnalyticsVisitorDetail({
+      sessionId: req.params.sessionId,
       days: req.query.days,
     });
 
