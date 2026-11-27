@@ -100,18 +100,6 @@ const BOT_BURST_MIN_SESSIONS = Math.min(
   500
 );
 
-// Detecta crawling distribuido entre varios países. Se mantiene conservador:
-// exige muchas sesiones nuevas, varios países y el mismo patrón facetado.
-const DISTRIBUTED_BOT_BURST_MIN_SESSIONS = Math.min(
-  Math.max(Number(process.env.ANALYTICS_DISTRIBUTED_BOT_BURST_MIN_SESSIONS) || 20, 12),
-  1000
-);
-
-const DISTRIBUTED_BOT_BURST_MIN_COUNTRIES = Math.min(
-  Math.max(Number(process.env.ANALYTICS_DISTRIBUTED_BOT_BURST_MIN_COUNTRIES) || 4, 3),
-  50
-);
-
 const isLegacyFacetedCatalogPath = (value) => {
   if (!value || !value.startsWith("/productos/laminados?")) return false;
   try {
@@ -161,49 +149,6 @@ const markSuspiciousLegacyCatalogBurst = async (client, countryCode, threshold) 
      RETURNING s.id`,
     [countryCode, threshold]
   );
-  return result.rowCount;
-};
-
-
-const markSuspiciousDistributedCatalogBurst = async (
-  client,
-  threshold,
-  minCountries
-) => {
-  const result = await client.query(
-    `WITH candidates AS MATERIALIZED (
-       SELECT s.id, s.country_code
-       FROM analytics_sessions s
-       JOIN analytics_events e ON e.session_id = s.id
-       WHERE s.first_seen_at >= NOW() - INTERVAL '30 minutes'
-         AND s.device_type = 'desktop'
-         AND s.landing_page LIKE '/productos/laminados?%'
-         AND s.landing_page ~ '[?&]q='
-         AND s.landing_page ~ '[?&](order|productListView|resultsPerPage|page)='
-         AND length(s.landing_page) >= 140
-       GROUP BY s.id, s.country_code
-       HAVING COUNT(*) = 2
-          AND COUNT(*) FILTER (WHERE e.event_type = 'PAGE_VIEW') = 1
-          AND COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_VIEW') = 1
-     ), burst AS (
-       SELECT
-         COUNT(*) >= $1::integer AS enough_sessions,
-         COUNT(DISTINCT country_code) >= $2::integer AS enough_countries
-       FROM candidates
-     )
-     UPDATE analytics_sessions s
-     SET is_suspected_bot = TRUE,
-         bot_reason = 'distributed_faceted_catalog_burst_30m',
-         bot_detected_at = NOW()
-     FROM candidates c, burst b
-     WHERE b.enough_sessions
-       AND b.enough_countries
-       AND s.id = c.id
-       AND s.is_suspected_bot = FALSE
-     RETURNING s.id`,
-    [threshold, minCountries]
-  );
-
   return result.rowCount;
 };
 
@@ -396,12 +341,6 @@ export const createAnalyticsEvent = async (payload = {}) => {
         session.countryCode,
         BOT_BURST_MIN_SESSIONS
       );
-
-      await markSuspiciousDistributedCatalogBurst(
-        client,
-        DISTRIBUTED_BOT_BURST_MIN_SESSIONS,
-        DISTRIBUTED_BOT_BURST_MIN_COUNTRIES
-      );
     }
 
     await client.query("COMMIT");
@@ -422,7 +361,7 @@ export const createAnalyticsEvent = async (payload = {}) => {
 export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
   const periodDays = normalizeDays(days);
 
-  const [summaryResult, trafficResult, audienceResult] = await Promise.all([
+  const [summaryResult, trafficResult] = await Promise.all([
     pool.query(
       `
         SELECT
@@ -441,7 +380,8 @@ export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
           COUNT(e.id) FILTER (WHERE e.event_type = 'CHECKOUT_START')::int AS checkout_starts,
           COUNT(e.id) FILTER (WHERE e.event_type = 'ORDER_CREATED')::int AS orders_created
         FROM analytics_sessions s
-        JOIN analytics_events e ON e.session_id = s.id
+        JOIN analytics_events e
+          ON e.session_id = s.id
         WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
           AND s.is_suspected_bot = FALSE
       `,
@@ -450,34 +390,21 @@ export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
     pool.query(
       `
         SELECT
-          DATE(s.first_seen_at AT TIME ZONE 'America/Santiago') AS day,
-          COUNT(*) FILTER (WHERE s.is_suspected_bot = FALSE)::int AS sessions,
-          COUNT(*) FILTER (WHERE s.is_suspected_bot = FALSE AND s.country_code = 'CL')::int AS chile_sessions,
-          COUNT(*) FILTER (WHERE s.is_suspected_bot = FALSE AND COALESCE(s.country_code, '') <> 'CL')::int AS international_sessions,
-          COUNT(*) FILTER (WHERE s.is_suspected_bot = TRUE)::int AS suspected_bot_sessions
-        FROM analytics_sessions s
-        WHERE s.first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
-        GROUP BY DATE(s.first_seen_at AT TIME ZONE 'America/Santiago')
+          DATE(e.created_at AT TIME ZONE 'America/Santiago') AS day,
+          COUNT(*) FILTER (WHERE e.event_type = 'PAGE_VIEW')::int AS page_views,
+          COUNT(DISTINCT e.session_id)::int AS sessions
+        FROM analytics_events e
+        JOIN analytics_sessions s ON s.id = e.session_id
+        WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
+        GROUP BY DATE(e.created_at AT TIME ZONE 'America/Santiago')
         ORDER BY day ASC
-      `,
-      [periodDays]
-    ),
-    pool.query(
-      `
-        SELECT
-          COUNT(*) FILTER (WHERE is_suspected_bot = FALSE)::int AS human_sessions,
-          COUNT(*) FILTER (WHERE is_suspected_bot = FALSE AND country_code = 'CL')::int AS chile_sessions,
-          COUNT(*) FILTER (WHERE is_suspected_bot = FALSE AND COALESCE(country_code, '') <> 'CL')::int AS international_sessions,
-          COUNT(*) FILTER (WHERE is_suspected_bot = TRUE)::int AS suspected_bot_sessions
-        FROM analytics_sessions
-        WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
       `,
       [periodDays]
     ),
   ]);
 
   const summary = summaryResult.rows[0] || {};
-  const audience = audienceResult.rows[0] || {};
   const sessions = Number(summary.sessions || 0);
   const quotesCreated = Number(summary.quotes_created || 0);
   const ordersCreated = Number(summary.orders_created || 0);
@@ -486,10 +413,15 @@ export const getAnalyticsOverview = async ({ days = 30 } = {}) => {
     days: periodDays,
     summary: {
       ...summary,
-      conversion_rate: sessions > 0 ? Number(((quotesCreated / sessions) * 100).toFixed(2)) : 0,
-      order_conversion_rate: sessions > 0 ? Number(((ordersCreated / sessions) * 100).toFixed(2)) : 0,
+      conversion_rate:
+        sessions > 0
+          ? Number(((quotesCreated / sessions) * 100).toFixed(2))
+          : 0,
+      order_conversion_rate:
+        sessions > 0
+          ? Number(((ordersCreated / sessions) * 100).toFixed(2))
+          : 0,
     },
-    audience,
     traffic: trafficResult.rows,
   };
 };
@@ -506,7 +438,16 @@ export const getAnalyticsProducts = async ({ days = 30, limit = 20 } = {}) => {
         COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')::int AS views,
         COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK')::int AS clicks,
         COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
-        COUNT(DISTINCT e.session_id)::int AS unique_sessions
+        COUNT(*) FILTER (
+          WHERE e.event_type = 'PRODUCT_CLICK'
+            AND e.search_term IS NOT NULL
+        )::int AS search_clicks,
+        COUNT(DISTINCT e.session_id)::int AS unique_sessions,
+        (
+          COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')
+          + (COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK') * 3)
+          + (COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK') * 8)
+        )::int AS engagement_score
       FROM analytics_events e
       JOIN analytics_sessions s ON s.id = e.session_id
       WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
@@ -518,7 +459,7 @@ export const getAnalyticsProducts = async ({ days = 30, limit = 20 } = {}) => {
           'WHATSAPP_CLICK'
         )
       GROUP BY e.product_id, e.product_code
-      ORDER BY views DESC, clicks DESC, e.product_code ASC
+      ORDER BY engagement_score DESC, views DESC, clicks DESC, e.product_code ASC
       LIMIT $2
     `,
     [periodDays, rowLimit]
@@ -541,14 +482,18 @@ export const getAnalyticsCollections = async ({ days = 30, limit = 20 } = {}) =>
         COUNT(*)::int AS interactions,
         COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_VIEW')::int AS views,
         COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_CLICK')::int AS clicks,
-        COUNT(DISTINCT e.session_id)::int AS unique_sessions
+        COUNT(DISTINCT e.session_id)::int AS unique_sessions,
+        (
+          COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_VIEW')
+          + (COUNT(*) FILTER (WHERE e.event_type = 'COLLECTION_CLICK') * 3)
+        )::int AS engagement_score
       FROM analytics_events e
       JOIN analytics_sessions s ON s.id = e.session_id
       WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
         AND s.is_suspected_bot = FALSE
         AND e.collection_slug IS NOT NULL
       GROUP BY e.collection_slug
-      ORDER BY views DESC, clicks DESC, interactions DESC, e.collection_slug ASC
+      ORDER BY engagement_score DESC, views DESC, clicks DESC, interactions DESC, e.collection_slug ASC
       LIMIT $2
     `,
     [periodDays, rowLimit]
@@ -564,112 +509,23 @@ export const getAnalyticsLocations = async ({ days = 30, limit = 50 } = {}) => {
   const periodDays = normalizeDays(days);
   const rowLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
 
-  const [legacyResult, summaryResult, countriesResult, regionsResult, locationsResult] = await Promise.all([
-    pool.query(
-      `
-        SELECT country_code, region_code, city, commune, COUNT(*)::int AS sessions
-        FROM analytics_sessions
-        WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
-          AND is_suspected_bot = FALSE
-        GROUP BY country_code, region_code, city, commune
-        ORDER BY sessions DESC, city ASC NULLS LAST, commune ASC NULLS LAST
-        LIMIT $2
-      `,
-      [periodDays, rowLimit]
-    ),
-    pool.query(
-      `
-        SELECT
-          COUNT(*)::int AS total_sessions,
-          COUNT(*) FILTER (WHERE country_code = 'CL')::int AS chile_sessions,
-          COUNT(*) FILTER (WHERE COALESCE(country_code, '') <> 'CL')::int AS international_sessions
-        FROM analytics_sessions
-        WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
-          AND is_suspected_bot = FALSE
-      `,
-      [periodDays]
-    ),
-    pool.query(
-      `
-        SELECT COALESCE(NULLIF(country_code, ''), 'UNKNOWN') AS country_code, COUNT(*)::int AS sessions
-        FROM analytics_sessions
-        WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
-          AND is_suspected_bot = FALSE
-        GROUP BY COALESCE(NULLIF(country_code, ''), 'UNKNOWN')
-        ORDER BY sessions DESC, country_code ASC
-        LIMIT $2
-      `,
-      [periodDays, rowLimit]
-    ),
-    pool.query(
-      `
-        SELECT COALESCE(NULLIF(region_code, ''), 'UNKNOWN') AS region_code, COUNT(*)::int AS sessions
-        FROM analytics_sessions
-        WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
-          AND is_suspected_bot = FALSE
-          AND country_code = 'CL'
-        GROUP BY COALESCE(NULLIF(region_code, ''), 'UNKNOWN')
-        ORDER BY sessions DESC, region_code ASC
-      `,
-      [periodDays]
-    ),
-    pool.query(
-      `
-        SELECT
-          region_code,
-          city,
-          commune,
-          CASE
-            WHEN region_code = 'RM' AND city = 'Santiago' AND commune = 'Santiago'
-              THEN 'Santiago / ubicación aproximada'
-            ELSE COALESCE(NULLIF(commune, ''), NULLIF(city, ''), 'Sin ubicación precisa')
-          END AS location_label,
-          CASE
-            WHEN region_code = 'RM' AND city = 'Santiago' AND commune = 'Santiago' THEN TRUE
-            ELSE FALSE
-          END AS is_approximate,
-          COUNT(*)::int AS sessions
-        FROM analytics_sessions
-        WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
-          AND is_suspected_bot = FALSE
-          AND country_code = 'CL'
-        GROUP BY region_code, city, commune
-        ORDER BY sessions DESC, location_label ASC
-        LIMIT $2
-      `,
-      [periodDays, rowLimit]
-    ),
-  ]);
-
-  return {
-    days: periodDays,
-    summary: summaryResult.rows[0] || { total_sessions: 0, chile_sessions: 0, international_sessions: 0 },
-    countries: countriesResult.rows,
-    chile_regions: regionsResult.rows,
-    chile_locations: locationsResult.rows,
-    items: legacyResult.rows,
-  };
-};
-
-export const getAnalyticsSearches = async ({ days = 30, limit = 50 } = {}) => {
-  const periodDays = normalizeDays(days);
-  const rowLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-
   const result = await pool.query(
     `
       SELECT
-        e.search_term,
-        COUNT(*) FILTER (WHERE e.event_type = 'SEARCH')::int AS searches,
-        COUNT(*) FILTER (WHERE e.event_type = 'SEARCH_NO_RESULTS')::int AS no_results,
-        COUNT(DISTINCT e.session_id)::int AS unique_sessions
-      FROM analytics_events e
-      JOIN analytics_sessions s ON s.id = e.session_id
-      WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
-        AND s.is_suspected_bot = FALSE
-        AND e.search_term IS NOT NULL
-        AND e.event_type IN ('SEARCH', 'SEARCH_NO_RESULTS')
-      GROUP BY e.search_term
-      ORDER BY searches DESC, no_results DESC, e.search_term ASC
+        country_code,
+        region_code,
+        city,
+        commune,
+        COUNT(*)::int AS sessions
+      FROM analytics_sessions
+      WHERE first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
+        AND is_suspected_bot = FALSE
+      GROUP BY
+        country_code,
+        region_code,
+        city,
+        commune
+      ORDER BY sessions DESC, city ASC NULLS LAST, commune ASC NULLS LAST
       LIMIT $2
     `,
     [periodDays, rowLimit]
@@ -678,6 +534,63 @@ export const getAnalyticsSearches = async ({ days = 30, limit = 50 } = {}) => {
   return {
     days: periodDays,
     items: result.rows,
+  };
+};
+
+export const getAnalyticsSearches = async ({ days = 30, limit = 50 } = {}) => {
+  const periodDays = normalizeDays(days);
+  const rowLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+
+  const [termsResult, productLinksResult] = await Promise.all([
+    pool.query(
+      `
+        SELECT
+          e.search_term,
+          COUNT(*) FILTER (WHERE e.event_type = 'SEARCH')::int AS searches,
+          COUNT(*) FILTER (WHERE e.event_type = 'SEARCH_NO_RESULTS')::int AS no_results,
+          COUNT(DISTINCT e.session_id)::int AS unique_sessions
+        FROM analytics_events e
+        JOIN analytics_sessions s ON s.id = e.session_id
+        WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
+          AND e.search_term IS NOT NULL
+          AND e.event_type IN ('SEARCH', 'SEARCH_NO_RESULTS')
+        GROUP BY e.search_term
+        ORDER BY searches DESC, no_results DESC, e.search_term ASC
+        LIMIT $2
+      `,
+      [periodDays, rowLimit]
+    ),
+    pool.query(
+      `
+        SELECT
+          e.search_term,
+          e.product_id,
+          e.product_code,
+          COUNT(*)::int AS clicks,
+          COUNT(DISTINCT e.session_id)::int AS unique_sessions
+        FROM analytics_events e
+        JOIN analytics_sessions s ON s.id = e.session_id
+        WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+          AND s.is_suspected_bot = FALSE
+          AND e.event_type = 'PRODUCT_CLICK'
+          AND e.search_term IS NOT NULL
+          AND e.product_code IS NOT NULL
+        GROUP BY
+          e.search_term,
+          e.product_id,
+          e.product_code
+        ORDER BY clicks DESC, unique_sessions DESC, e.search_term ASC
+        LIMIT $3
+      `,
+      [periodDays, rowLimit, Math.min(rowLimit * 5, 500)]
+    ),
+  ]);
+
+  return {
+    days: periodDays,
+    items: termsResult.rows,
+    product_links: productLinksResult.rows,
   };
 };
 
