@@ -503,6 +503,10 @@ export const getAnalyticsProducts = async ({ days = 30, limit = 20 } = {}) => {
       SELECT
         e.product_id,
         e.product_code,
+        COALESCE(p.name, e.product_code) AS product_name,
+        p.slug AS product_slug,
+        p.sku AS product_sku,
+        p.internal_code AS product_internal_code,
         COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')::int AS views,
         COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK')::int AS clicks,
         COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
@@ -518,6 +522,26 @@ export const getAnalyticsProducts = async ({ days = 30, limit = 20 } = {}) => {
         )::int AS engagement_score
       FROM analytics_events e
       JOIN analytics_sessions s ON s.id = e.session_id
+      LEFT JOIN LATERAL (
+        SELECT
+          p0.id,
+          p0.sku,
+          p0.internal_code,
+          p0.name,
+          p0.slug
+        FROM products p0
+        WHERE
+          (e.product_id IS NOT NULL AND p0.id = e.product_id)
+          OR LOWER(COALESCE(p0.sku, '')) = LOWER(COALESCE(e.product_code, ''))
+          OR LOWER(COALESCE(p0.internal_code, '')) = LOWER(COALESCE(e.product_code, ''))
+        ORDER BY
+          CASE
+            WHEN e.product_id IS NOT NULL AND p0.id = e.product_id THEN 0
+            WHEN LOWER(COALESCE(p0.sku, '')) = LOWER(COALESCE(e.product_code, '')) THEN 1
+            ELSE 2
+          END
+        LIMIT 1
+      ) p ON TRUE
       WHERE e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
         AND s.is_suspected_bot = FALSE
         AND e.product_code IS NOT NULL
@@ -526,7 +550,13 @@ export const getAnalyticsProducts = async ({ days = 30, limit = 20 } = {}) => {
           'PRODUCT_CLICK',
           'WHATSAPP_CLICK'
         )
-      GROUP BY e.product_id, e.product_code
+      GROUP BY
+        e.product_id,
+        e.product_code,
+        p.name,
+        p.slug,
+        p.sku,
+        p.internal_code
       ORDER BY engagement_score DESC, views DESC, clicks DESC, e.product_code ASC
       LIMIT $2
     `,
@@ -816,6 +846,19 @@ export const getAnalyticsVisitors = async ({ days = 30, limit = 50 } = {}) => {
           ARRAY[]::varchar[]
         ) AS clicked_products,
         COALESCE(
+          JSONB_AGG(
+            DISTINCT JSONB_BUILD_OBJECT(
+              'code', e.product_code,
+              'name', COALESCE(p.name, e.product_code),
+              'slug', p.slug
+            )
+          ) FILTER (
+            WHERE e.event_type = 'PRODUCT_CLICK'
+              AND NULLIF(TRIM(e.product_code), '') IS NOT NULL
+          ),
+          '[]'::jsonb
+        ) AS clicked_product_details,
+        COALESCE(
           ARRAY_AGG(DISTINCT e.search_term) FILTER (
             WHERE e.event_type = 'SEARCH'
               AND NULLIF(TRIM(e.search_term), '') IS NOT NULL
@@ -832,6 +875,21 @@ export const getAnalyticsVisitors = async ({ days = 30, limit = 50 } = {}) => {
       LEFT JOIN analytics_events e
         ON e.session_id = s.id
        AND e.created_at >= NOW() - ($1::int * INTERVAL '1 day')
+      LEFT JOIN LATERAL (
+        SELECT p0.name, p0.slug
+        FROM products p0
+        WHERE
+          (e.product_id IS NOT NULL AND p0.id = e.product_id)
+          OR LOWER(COALESCE(p0.sku, '')) = LOWER(COALESCE(e.product_code, ''))
+          OR LOWER(COALESCE(p0.internal_code, '')) = LOWER(COALESCE(e.product_code, ''))
+        ORDER BY
+          CASE
+            WHEN e.product_id IS NOT NULL AND p0.id = e.product_id THEN 0
+            WHEN LOWER(COALESCE(p0.sku, '')) = LOWER(COALESCE(e.product_code, '')) THEN 1
+            ELSE 2
+          END
+        LIMIT 1
+      ) p ON TRUE
       WHERE s.first_seen_at >= NOW() - ($1::int * INTERVAL '1 day')
         AND s.is_suspected_bot = FALSE
       GROUP BY
@@ -905,12 +963,23 @@ export const getAnalyticsVisitorDetail = async ({ sessionId, days = 30 } = {}) =
           e.page_path,
           e.product_id,
           e.product_code,
+          COALESCE(p.name, e.product_code) AS product_name,
+          p.slug AS product_slug,
           e.collection_slug,
           e.search_term,
           e.metadata,
           e.created_at
         FROM analytics_events e
         JOIN analytics_sessions s ON s.id = e.session_id
+        LEFT JOIN LATERAL (
+          SELECT p0.name, p0.slug
+          FROM products p0
+          WHERE
+            (e.product_id IS NOT NULL AND p0.id = e.product_id)
+            OR LOWER(COALESCE(p0.sku, '')) = LOWER(COALESCE(e.product_code, ''))
+            OR LOWER(COALESCE(p0.internal_code, '')) = LOWER(COALESCE(e.product_code, ''))
+          LIMIT 1
+        ) p ON TRUE
         WHERE e.session_id = $1
           AND e.created_at >= NOW() - ($2::int * INTERVAL '1 day')
           AND s.is_suspected_bot = FALSE
@@ -923,18 +992,29 @@ export const getAnalyticsVisitorDetail = async ({ sessionId, days = 30 } = {}) =
       `
         SELECT
           e.product_code,
+          COALESCE(p.name, e.product_code) AS product_name,
+          p.slug AS product_slug,
           COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_VIEW')::int AS views,
           COUNT(*) FILTER (WHERE e.event_type = 'PRODUCT_CLICK')::int AS clicks,
           COUNT(*) FILTER (WHERE e.event_type = 'WHATSAPP_CLICK')::int AS whatsapp_clicks,
           MAX(e.created_at) AS last_interaction_at
         FROM analytics_events e
         JOIN analytics_sessions s ON s.id = e.session_id
+        LEFT JOIN LATERAL (
+          SELECT p0.name, p0.slug
+          FROM products p0
+          WHERE
+            (e.product_id IS NOT NULL AND p0.id = e.product_id)
+            OR LOWER(COALESCE(p0.sku, '')) = LOWER(COALESCE(e.product_code, ''))
+            OR LOWER(COALESCE(p0.internal_code, '')) = LOWER(COALESCE(e.product_code, ''))
+          LIMIT 1
+        ) p ON TRUE
         WHERE e.session_id = $1
           AND e.created_at >= NOW() - ($2::int * INTERVAL '1 day')
           AND s.is_suspected_bot = FALSE
           AND NULLIF(TRIM(e.product_code), '') IS NOT NULL
           AND e.event_type IN ('PRODUCT_VIEW', 'PRODUCT_CLICK', 'WHATSAPP_CLICK')
-        GROUP BY e.product_code
+        GROUP BY e.product_code, p.name, p.slug
         ORDER BY clicks DESC, views DESC, whatsapp_clicks DESC, last_interaction_at DESC
       `,
       [normalizedSessionId, periodDays]
