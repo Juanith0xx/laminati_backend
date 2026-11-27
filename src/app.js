@@ -66,6 +66,8 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 
 import adminAnalyticsRoutes from "./routes/adminAnalytics.routes.js";
 
+import mailingRoutes from "./routes/mailing.routes.js";
+
 import bathroomProjectRoutes from "./routes/bathroomProject.routes.js";
 
 const app = express();
@@ -285,6 +287,13 @@ app.use("/api/admin/dashboard", dashboardRoutes);
 app.use(
   "/api/admin/analytics",
   adminAnalyticsRoutes
+);
+
+// Mailing: contactos, segmentos, plantillas, campañas y supresiones.
+// Debe ir antes de los routers administrativos genéricos.
+app.use(
+  "/api/admin/mailing",
+  mailingRoutes
 );
 
 // Listado y detalle administrativo de órdenes WEB/STORE (sólo GET).
